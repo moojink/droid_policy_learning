@@ -10,14 +10,14 @@ from collections import OrderedDict
 # Note: Assumes naming of dataset in "datasets" for the full DROID dataset is
 # droid
 
-DATA_PATH = ""    # UPDATE WITH PATH TO RLDS DATASETS
-EXP_LOG_PATH = "" # UPDATE WITH PATH TO DESIRED LOGGING DIRECTORY
+DATA_PATH = "/iris/u/moojink/data/"    # UPDATE WITH PATH TO RLDS DATASETS
+EXP_LOG_PATH = "/iris/u/moojink/prismatic-dev/droid_dp_runs/" # UPDATE WITH PATH TO DESIRED LOGGING DIRECTORY
 EXP_NAMES = OrderedDict(
     [
         # Note: you can add co-training dataset here appending
         # a new dataset to "datasets" and adjusting "sample_weights"
         # accordingly
-        ("droid", {"datasets": ["droid"],
+        ("mjk_panda_4", {"datasets": ["mjk_panda_4"],
                    "sample_weights": [1]})                                    
     ])
 
@@ -64,7 +64,7 @@ def make_generator_helper(args):
         key="train.shuffle_buffer_size",
         name="",
         group=-1,
-        values=[500000],
+        values=[5000],
     )
 
     generator.add_param(
@@ -169,9 +169,15 @@ def make_generator_helper(args):
             group=-1,
             values=[
                 [
-                    "action/abs_pos",
-                    "action/abs_rot_6d",
-                    "action/gripper_position",
+                    # # Absolute position control
+                    # "action/abs_pos",
+                    # "action/abs_rot_6d",
+                    # "action/gripper_position",
+
+                    # Relative position control
+                    "action/rel_pos",
+                    "action/rel_rot_euler",
+                    "action/gripper_velocity",
                 ],
             ],
             value_names=[
@@ -185,8 +191,14 @@ def make_generator_helper(args):
             group=-1,
             values=[
                 [
+                    # # Absolute position control (w/ 6D rot)
+                    # (1, 3),
+                    # (1, 6),
+                    # (1, 1),
+
+                    # Relative position control (w/ 3D rot)
                     (1, 3),
-                    (1, 6),
+                    (1, 3),
                     (1, 1),
                 ],
             ],
@@ -209,19 +221,13 @@ def make_generator_helper(args):
             name="cams",
             group=130,
             values=[
-                # ["camera/image/hand_camera_left_image"],
-                # ["camera/image/hand_camera_left_image", "camera/image/hand_camera_right_image"],
-                ["camera/image/varied_camera_1_left_image", "camera/image/varied_camera_2_left_image"],
-                # [
-                    # "camera/image/hand_camera_left_image", "camera/image/hand_camera_right_image",
-                #     "camera/image/varied_camera_1_left_image", "camera/image/varied_camera_1_right_image",
-                #     "camera/image/varied_camera_2_left_image", "camera/image/varied_camera_2_right_image",
-                # ],
+                ["static_image"],
             ],
             value_names=[
+                "static",
                 # "wrist",
                 # "wrist-stereo",
-                "2cams",
+                # "2cams",
                 # "3cams-stereo",
             ]
         )
@@ -247,25 +253,25 @@ def make_generator_helper(args):
         )
 
         ### CONDITIONING
-        generator.add_param(
-            key="train.goal_mode",
-            name="goal_mode",
-            group=24986,
-            values = [
-                # "geom",
-                None, # Change this to "geom" to do goal conditioning
+        # generator.add_param(
+        #     key="train.goal_mode",
+        #     name="goal_mode",
+        #     group=24986,
+        #     values = [
+        #         # "geom",
+        #         None, # Change this to "geom" to do goal conditioning
 
-            ]
-        )
-        generator.add_param(
-            key="train.truncated_geom_factor",
-            name="truncated_geom_factor",
-            group=5555,
-            values = [
-                0.3,
-                # 0.5
-            ]
-        )
+        #     ]
+        # )
+        # generator.add_param(
+        #     key="train.truncated_geom_factor",
+        #     name="truncated_geom_factor",
+        #     group=5555,
+        #     values = [
+        #         0.3,
+        #         # 0.5
+        #     ]
+        # )
         generator.add_param(
             key="observation.modalities.obs.low_dim",
             name="ldkeys",
@@ -278,16 +284,16 @@ def make_generator_helper(args):
             ],
             hidename=False,
         )
-        generator.add_param(
-            key="observation.encoder.rgb.core_kwargs.backbone_kwargs.use_cam",
-            name="",
-            group=2498,
-            values=[
-                False,
-                # True,
-            ],
-            hidename=True,
-        )
+        # generator.add_param(
+        #     key="observation.encoder.rgb.core_kwargs.backbone_kwargs.use_cam",
+        #     name="",
+        #     group=2498,
+        #     values=[
+        #         False,
+        #         # True,
+        #     ],
+        #     hidename=True,
+        # )
         generator.add_param(
             key="observation.encoder.rgb.core_kwargs.backbone_kwargs.pretrained",
             name="",

@@ -55,7 +55,7 @@ def convert_dataset(path, args):
     assert(num_svo_files == 3), "Didnt find 3 svos!"
     camera_kwargs = dict(
         hand_camera=dict(image=True, concatenate_images=False, resolution=(args.imsize, args.imsize), resize_func="cv2"),
-        varied_camera=dict(image=True, concatenate_images=False, resolution=(args.imsize, args.imsize), resize_func="cv2"),
+        static_camera=dict(image=True, concatenate_images=False, resolution=(args.imsize, args.imsize), resize_func="cv2"),
     )
     camera_reader = RecordedMultiCameraWrapper(recording_folderpath, camera_kwargs)
 
@@ -72,47 +72,39 @@ def convert_dataset(path, args):
     Extract camera type and keys. Examples of what they should look like:
     camera_type_dict = {
         '17225336': 'hand_camera',
-        '24013089': 'varied_camera',
-        '25047636': 'varied_camera'
+        '24013089': 'static_camera',
     }
     CAM_NAME_TO_KEY_MAPPING = {
-        "hand_camera_left_image": "17225336_left",
-        "hand_camera_right_image": "17225336_right",
-        "varied_camera_1_left_image": "24013089_left",
-        "varied_camera_1_right_image": "24013089_right",
-        "varied_camera_2_left_image": "25047636_left",
-        "varied_camera_2_right_image": "25047636_right",
+        "hand_camera_image": "17225336",
+        "static_camera_image": "24013089",
     }
     """
 
     CAM_ID_TO_TYPE = {}
     hand_cam_ids = []
-    varied_cam_ids = []
+    static_cam_ids = []
     for k in f["observation"]["camera_type"]:
         cam_type = camera_type_to_string_dict[f["observation"]["camera_type"][k][0]]
         CAM_ID_TO_TYPE[k] = cam_type
         if cam_type == "hand_camera":
             hand_cam_ids.append(k)
-        elif cam_type == "varied_camera":
-            varied_cam_ids.append(k)
+        elif cam_type == "static_camera":
+            static_cam_ids.append(k)
         else:
             raise ValueError
         
 
     # sort the camera ids: important to maintain consistency of cams between train and eval!
     hand_cam_ids = sorted(hand_cam_ids)
-    varied_cam_ids = sorted(varied_cam_ids)
+    static_cam_ids = sorted(static_cam_ids)
 
     IMAGE_NAME_TO_CAM_KEY_MAPPING = {}
-    IMAGE_NAME_TO_CAM_KEY_MAPPING["hand_camera_left_image"] = "{}_left".format(hand_cam_ids[0])
-    IMAGE_NAME_TO_CAM_KEY_MAPPING["hand_camera_right_image"] = "{}_right".format(hand_cam_ids[0])
+    IMAGE_NAME_TO_CAM_KEY_MAPPING["hand_camera_image"] = str(hand_cam_ids[0])
     
-    # set up mapping for varied cameras
-    for i in range(len(varied_cam_ids)):
-        for side in ["left", "right"]:
-            cam_name = "varied_camera_{}_{}_image".format(i+1, side)
-            cam_key = "{}_{}".format(varied_cam_ids[i], side)
-            IMAGE_NAME_TO_CAM_KEY_MAPPING[cam_name] = cam_key
+    # set up mapping for static camera
+    cam_name = "static_camera_image"
+    cam_key = static_cam_ids[0]
+    IMAGE_NAME_TO_CAM_KEY_MAPPING[cam_name] = cam_key
 
     cam_data = {cam_name: [] for cam_name in IMAGE_NAME_TO_CAM_KEY_MAPPING.keys()}
     traj_reader = TrajectoryReader(path, read_images=False)

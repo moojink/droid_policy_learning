@@ -111,8 +111,8 @@ def set_env_settings(generator, args):
                 group=-1,
                 values=[
                     [
-                        "camera/image/hand_camera_left_image",
-                        "camera/image/varied_camera_1_left_image", "camera/image/varied_camera_2_left_image" # uncomment to use all 3 cameras
+                        "wrist_image",
+                        "static_image",
                     ]
                 ],
             )
@@ -178,22 +178,22 @@ def set_env_settings(generator, args):
                         "normalization": "min_max",
                     },
                     "action/cartesian_velocity":{
-                        "normalization": None,
+                        "normalization": "min_max",
                     },
                     "action/rel_pos":{
-                        "normalization": None,
+                        "normalization": "min_max",
                     },
                     "action/rel_rot_6d":{
                         "format": "rot_6d",
-                        "normalization": None,
+                        "normalization": "min_max",
                         "convert_at_runtime": "rot_euler",
                     },
                     "action/rel_rot_euler":{
                         "format": "rot_euler",
-                        "normalization": None,
+                        "normalization": "min_max",
                     },
                     "action/gripper_velocity":{
-                        "normalization": None,
+                        "normalization": "min_max",
                     },
                 }
             ],
@@ -243,17 +243,9 @@ def set_env_settings(generator, args):
             group=-1,
             values=[[[
                 (
-                "camera/image/varied_camera_1_left_image",
-                "camera/image/varied_camera_1_right_image",
-                "camera/extrinsics/varied_camera_1_left",
-                "camera/extrinsics/varied_camera_1_right",
+                "static_image",
+                "camera/extrinsics/static_camera",
                 ),
-                (
-                "camera/image/varied_camera_2_left_image",
-                "camera/image/varied_camera_2_right_image",
-                "camera/extrinsics/varied_camera_2_left",
-                "camera/extrinsics/varied_camera_2_right",
-                ),  
             ]]],
         )
     elif args.env == "kitchen":
@@ -315,8 +307,7 @@ def set_env_settings(generator, args):
                 name="",
                 group=-1,
                 values=[
-                    ["robot0_agentview_left_image",
-                     "robot0_agentview_right_image",
+                    ["robot0_agentview_image",
                      "robot0_eye_in_hand_image"]
                 ],
             )

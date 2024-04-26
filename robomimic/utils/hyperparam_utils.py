@@ -32,7 +32,7 @@ class ConfigGenerator(object):
         self.generated_config_dir = generated_config_dir
         assert script_file is None or isinstance(script_file, str)
         if script_file is None:
-            self.script_file = os.path.join('~', 'tmp/tmpp.sh')
+            self.script_file = os.path.join('/iris/u/moojink/prismatic-dev/droid_dp_runs', 'tmp/tmpp.sh') # TODO (Moo Jin): Remove hardcode.
         else:
             self.script_file = script_file
         self.script_file = os.path.expanduser(self.script_file)

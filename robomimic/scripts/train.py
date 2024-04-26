@@ -44,7 +44,7 @@ from robomimic.utils.dataset import action_stats_to_normalization_stats
 from robomimic.config import config_factory
 from robomimic.algo import algo_factory, RolloutPolicy
 from robomimic.utils.log_utils import PrintLogger, DataLogger, flush_warnings
-from robomimic.utils.rlds_utils import droid_dataset_transform, robomimic_transform, DROID_TO_RLDS_OBS_KEY_MAP, DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP, TorchRLDSDataset
+from robomimic.utils.rlds_utils import droid_dataset_transform_abs, droid_dataset_transform_rel, robomimic_transform, DROID_TO_RLDS_OBS_KEY_MAP, DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP, TorchRLDSDataset
 
 from octo.data.dataset import make_dataset_from_rlds, make_interleaved_dataset
 from octo.data.utils.data_utils import combine_dataset_statistics
@@ -56,70 +56,85 @@ def train(config, device):
     Train a model using the algorithm.
     """
 
-    # first set seeds
+    # Set random seed.
     np.random.seed(config.train.seed)
     torch.manual_seed(config.train.seed)
 
-    # set num workers
+    # Set number of threads for intraop parallelism on CPU.
     torch.set_num_threads(1)
 
+    # Print training config.
     print("\n============= New Training Run with Config =============")
     print(config)
     print("")
+
+    # Get experiment logging directories.
     log_dir, ckpt_dir, video_dir, vis_dir = TrainUtils.get_exp_dir(config)
 
+    # Log stdout and stderror outputs to a text file.
     if config.experiment.logging.terminal_output_to_txt:
-        # log stdout and stderr to a text file
         logger = PrintLogger(os.path.join(log_dir, 'log.txt'))
         sys.stdout = logger
         sys.stderr = logger
 
-    # read config to set up metadata for observation modalities (e.g. detecting rgb observations)
+    # Read config to set up metadata for observation modalities (e.g., RGB and low-dim observations).
     ObsUtils.initialize_obs_utils_with_config(config)
 
+    # Get dataset format.
     ds_format = config.train.data_format
 
     if ds_format == "droid_rlds":
-        # # load basic metadata from training file
-        # print("\n============= Loaded Environment Metadata =============")
-        env_meta = FileUtils.get_env_metadata_from_dataset(dataset_path=None, ds_format=ds_format)
+        env_meta = {}
         obs_normalization_stats = None
 
-        # FOR RLDS
+        # (For RLDS datasets) Disable TensorFlow's GPU utilization.
         tf.config.set_visible_devices([], "GPU")
 
+        # Get RGB observation modalities.
         obs_modalities = config.observation.modalities.obs.rgb
-        # NOTE: Must be 2 cam for now, can clean this up later
-        assert(len(obs_modalities) == 2)
+        assert(len(obs_modalities) == 1), "Only expecting observations from one camera!"
+
+        # Get action dim, configs, and mask.
         ac_dim = sum([ac_comp[1] for ac_comp in config.train.action_shapes])
         action_config = config.train.action_config
-        is_abs_action = [True] * ac_dim
+        action_mask = [True] * ac_dim
 
+        # Set base dataset kwargs.
+        if "action/rel_pos" in config.train.action_keys:
+            assert "action/abs_pos" not in config.train.action_keys
+            droid_dataset_transform = droid_dataset_transform_rel
+        else:
+            droid_dataset_transform = droid_dataset_transform_abs
         BASE_DATASET_KWARGS = {
-                "data_dir": config.train.data_path,
-                "image_obs_keys": {"primary": DROID_TO_RLDS_OBS_KEY_MAP[obs_modalities[0]], "secondary": DROID_TO_RLDS_OBS_KEY_MAP[obs_modalities[1]]},
-                "state_obs_keys": [DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP[obs_key] for obs_key in config.observation.modalities.obs.low_dim],
-                "language_key": "language_instruction",
-                "norm_skip_keys":  ["proprio"],
-                "action_proprio_normalization_type": "bounds",
-                "absolute_action_mask": is_abs_action,
-                "action_normalization_mask": is_abs_action,
-                "standardize_fn": droid_dataset_transform,
+            "data_dir": config.train.data_path,
+            "image_obs_keys": {"primary": obs_modalities[0], "secondary": None},
+            "state_obs_keys": [DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP[obs_key] for obs_key in config.observation.modalities.obs.low_dim],
+            "language_key": "language_instruction",
+            "norm_skip_keys": ["proprio"],
+            "action_proprio_normalization_type": "bounds",
+            "absolute_action_mask": action_mask,
+            "action_normalization_mask": action_mask,
+            "standardize_fn": droid_dataset_transform,
          }
 
+        # Filter out failure episodes if applicable.
         dataset_names = config.train.dataset_names
         filter_functions = [[ModuleSpec.create(
                                 "robomimic.utils.rlds_utils:filter_success"
                                 )] if d_name == "droid" else [] \
                             for d_name in dataset_names]
+
+        # Set dataset kwargs list.
         dataset_kwargs_list = [
             {"name": d_name, "filter_functions": f_functions, **BASE_DATASET_KWARGS} for d_name, f_functions in zip(dataset_names, filter_functions)
         ]
-        # Compute combined normalization stats
+
+        # Compute combined normalization stats.
         combined_dataset_statistics = combine_dataset_statistics(
             [make_dataset_from_rlds(**dataset_kwargs, train=True)[1] for dataset_kwargs in dataset_kwargs_list]
         )
 
+        # Create dataset.
         dataset = make_interleaved_dataset(
             dataset_kwargs_list,
             config.train.sample_weights,
@@ -132,7 +147,7 @@ def train(config, device):
                 # NOTE(Ashwin): window_size and future_action_window_size may break if 
                 # not using diffusion policy
                 window_size=config.algo.horizon.observation_horizon,
-                future_action_window_size=config.algo.horizon.prediction_horizon-1,
+                future_action_window_size=config.algo.horizon.prediction_horizon-1,  # -1 because horizon = current action (+1) + future (H-1) actions
                 subsample_length=config.train.subsample_length,
                 skip_unlabeled=True,    # skip all trajectories without language
             ),
@@ -151,10 +166,12 @@ def train(config, device):
         # Note: If we have separated statistics for multiple datasets, use the first one (assumed to be DROID)
         # Otherwise, use the combined dataset statistics.
         rlds_dataset_stats = dataset.dataset_statistics[0] if isinstance(dataset.dataset_statistics, list) else dataset.dataset_statistics
+        num_transitions = rlds_dataset_stats["num_transitions"][0].item()
         action_stats = ActionUtils.get_action_stats_dict(rlds_dataset_stats["action"], config.train.action_keys, config.train.action_shapes)
         action_normalization_stats = action_stats_to_normalization_stats(action_stats, action_config)
         dataset = dataset.map(robomimic_transform, num_parallel_calls=config.train.traj_transform_threads)
 
+        # Create PyTorch Dataset and DataLoader.
         pytorch_dataset = TorchRLDSDataset(dataset)
         train_loader = DataLoader(
             pytorch_dataset,
@@ -162,10 +179,9 @@ def train(config, device):
             num_workers=0,  # important to keep this to 0 so PyTorch does not mess with the parallelism
         )
 
-        # For RLDS, get batch from train loader to compute shapes
+        # For RLDS, sample a batch from the dataloader to compute shapes.
         data_loader_iter = iter(train_loader)
         rlds_batch = next(data_loader_iter)
-
         shape_meta = FileUtils.get_shape_metadata_from_dataset(
             dataset_path=None,
             batch=rlds_batch,
@@ -235,7 +251,7 @@ def train(config, device):
         env_meta["env_name"] = config.experiment.env
         print("=" * 30 + "\n" + "Replacing Env to {}\n".format(env_meta["env_name"]) + "=" * 30)
 
-    # create environment
+    # (For simulation) Create environments for rollouts.
     envs = OrderedDict()
     if config.experiment.rollout.enabled:
         # create environments for validation runs
@@ -257,15 +273,15 @@ def train(config, device):
             envs[env.name] = env
             print(envs[env.name])
 
-    print("")
-
-    # setup for a new training run
+    # Set up logger.
     data_logger = DataLogger(
         log_dir,
         config,
         log_tb=config.experiment.logging.log_tb,
         log_wandb=config.experiment.logging.log_wandb,
     )
+
+    # Get model.
     model = algo_factory(
         algo_name=config.algo_name,
         config=config,
@@ -273,12 +289,12 @@ def train(config, device):
         ac_dim=shape_meta["ac_dim"],
         device=device,
     )
-    
-    # save the config as a json file
+
+    # Save the training config as a json file so that we can load it later during evaluations.
     with open(os.path.join(log_dir, '..', 'config.json'), 'w') as outfile:
         json.dump(config, outfile, indent=4)
 
-    # if checkpoint is specified, load in model weights
+    # Load model weights if pre-trained checkpoint is specified.
     ckpt_path = config.experiment.ckpt_path
     if ckpt_path is not None:
         print("LOADING MODEL WEIGHTS FROM " + ckpt_path)
@@ -286,9 +302,9 @@ def train(config, device):
         ckpt_dict = maybe_dict_from_checkpoint(ckpt_path=ckpt_path)
         model.deserialize(ckpt_dict["model"])
 
+    # Print model summary.
     print("\n============= Model Summary =============")
-    print(model)  # print model summary
-    print("")
+    print(model)
 
     ##### ------------------------------------------------------------------------------------ ######
 
@@ -308,25 +324,27 @@ def train(config, device):
     else:
         valid_loader = None
 
-    # print all warnings before training begins
+    # Print all warnings before training begins.
     print("*" * 50)
     print("Warnings generated by robomimic have been duplicated here (from above) for convenience. Please check them carefully.")
     flush_warnings()
     print("*" * 50)
     print("")
 
-    # main training loop
+    # Set up for main training loop.
     best_valid_loss = None
     best_return = {k: -np.inf for k in envs} if config.experiment.rollout.enabled else None
     best_success_rate = {k: -1. for k in envs} if config.experiment.rollout.enabled else None
     last_ckpt_time = time.time()
 
-    # number of learning steps per epoch (defaults to a full dataset pass)
-    train_num_steps = config.experiment.epoch_every_n_steps
+    # Get number of gradient steps per epoch.
+    train_num_steps = num_transitions // config.train.batch_size
     valid_num_steps = config.experiment.validation_epoch_every_n_steps
 
+    # Start training.
     data_loader_iter = iter(train_loader)
     for epoch in range(1, config.train.num_epochs + 1): # epoch numbers start at 1
+        # Run one train epoch.
         step_log, data_loader_iter = TrainUtils.run_epoch(
             model=model,
             data_loader=train_loader,
@@ -337,10 +355,10 @@ def train(config, device):
         )
         model.on_epoch_end(epoch)
 
-        # setup checkpoint path
+        # Set up checkpoint path.
         epoch_ckpt_name = "model_epoch_{}".format(epoch)
 
-        # check for recurring checkpoint saving conditions
+        # Check whether we should save checkpoint.
         should_save_ckpt = False
         if config.experiment.save.enabled:
             time_check = (config.experiment.save.every_n_seconds is not None) and \
@@ -354,6 +372,7 @@ def train(config, device):
             last_ckpt_time = time.time()
             ckpt_reason = "time"
 
+        # Print some logs.
         print("Train Epoch {}".format(epoch))
         print(json.dumps(step_log, sort_keys=True, indent=4))
         for k, v in step_log.items():
@@ -362,7 +381,7 @@ def train(config, device):
             else:
                 data_logger.record("Train/{}".format(k), v, epoch)
 
-        # Evaluate the model on validation set
+        # If applicable, evaluate the model on validation set.
         if config.experiment.validate:
             with torch.no_grad():
                 step_log = TrainUtils.run_epoch(model=model, data_loader=valid_loader, epoch=epoch, validate=True, num_steps=valid_num_steps)
@@ -480,22 +499,23 @@ def train(config, device):
                     should_save_batch_samples = True
                 if config.experiment.mse.on_save_ckpt and should_save_ckpt:
                     should_save_batch_samples = True
-            if should_save_batch_samples:
-                print("Computing Batch Visualization ...")
-                if config.experiment.mse.visualize:
-                    save_vis_dir = os.path.join(vis_dir, epoch_ckpt_name)
-                else:
-                    save_vis_dir = None
-                vis_log = model.compute_batch_visualize(
-                    batch=rlds_batch,
-                    num_samples=config.experiment.mse.num_samples,
-                    savedir=save_vis_dir,
-                )
+            # TODO (Moo Jin): The code below is erroring out. We don't need it anyway. Clean up later.
+            # if should_save_batch_samples:
+            #     print("Computing Batch Visualization ...")
+            #     if config.experiment.mse.visualize:
+            #         save_vis_dir = os.path.join(vis_dir, epoch_ckpt_name)
+            #     else:
+            #         save_vis_dir = None
+            #     vis_log = model.compute_batch_visualize(
+            #         batch=rlds_batch,
+            #         num_samples=config.experiment.mse.num_samples,
+            #         savedir=save_vis_dir,
+            #     )
 
-                for k, v in vis_log.items():
-                    data_logger.record("{}".format(k), v, epoch, data_type='image')
+            #     for k, v in vis_log.items():
+            #         data_logger.record("{}".format(k), v, epoch, data_type='image')
 
-                print("Batch Log Epoch {}".format(epoch))
+            #     print("Batch Log Epoch {}".format(epoch))
         
         # Only keep saved videos if the ckpt should be saved (but not because of validation score)
         should_save_video = (should_save_ckpt and (ckpt_reason != "valid")) or config.experiment.keep_all_videos

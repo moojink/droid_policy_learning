@@ -186,26 +186,8 @@ def get_shape_metadata_from_dataset(dataset_path, batch, action_keys, all_obs_ke
             "robot_state/cartesian_position",
             "robot_state/gripper_position",
             # "robot_state/joint_positions",
-            "camera/image/hand_camera_left_image",
-            # "camera/image/hand_camera_right_image",
-            "camera/image/varied_camera_1_left_image",
-            # "camera/image/varied_camera_1_right_image",
-            "camera/image/varied_camera_2_left_image",
-            # "camera/image/varied_camera_2_right_image",
-            # "camera/extrinsics/hand_camera_left",
-            # "camera/extrinsics/hand_camera_left_gripper_offset",
-            # "camera/extrinsics/hand_camera_right",
-            # "camera/extrinsics/hand_camera_right_gripper_offset",
-            # "camera/extrinsics/varied_camera_1_left",
-            # "camera/extrinsics/varied_camera_1_right",
-            # "camera/extrinsics/varied_camera_2_left",
-            # "camera/extrinsics/varied_camera_2_right",
-            # "camera/intrinsics/hand_camera_left",
-            # "camera/intrinsics/hand_camera_right",
-            # "camera/intrinsics/varied_camera_1_left",
-            # "camera/intrinsics/varied_camera_1_right",
-            # "camera/intrinsics/varied_camera_2_left",
-            # "camera/intrinsics/varied_camera_2_right",
+            "wrist_image",
+            "static_image",
             "lang_fixed/language_distilbert",
             "lang_fixed/language_raw"
         ]:
@@ -227,9 +209,7 @@ def get_shape_metadata_from_dataset(dataset_path, batch, action_keys, all_obs_ke
         for k in [
             "robot_state/cartesian_position",
             "robot_state/gripper_position",
-            "camera/image/varied_camera_1_left_image",
-            # "camera/image/varied_camera_1_right_image",
-            "camera/image/varied_camera_2_left_image",
+            "static_image",
         ]:
             if k in batch["obs"]:
                 initial_shape = batch["obs"][k].shape[2:]

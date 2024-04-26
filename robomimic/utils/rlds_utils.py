@@ -1,6 +1,7 @@
 """Episode transforms for different RLDS datasets to canonical dataset definition."""
 from typing import Any, Dict
 
+import numpy as np
 import tensorflow as tf
 import torch
 import tensorflow_graphics.geometry.transformation as tfg
@@ -24,7 +25,8 @@ def mat_to_rot6d(mat):
     return r6_flat
 
 
-def droid_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
+def droid_dataset_transform_abs(trajectory: Dict[str, Any]) -> Dict[str, Any]:
+    # absolute cartesian control
     # every input feature is batched, ie has leading batch dimension
     T = trajectory["action_dict"]["cartesian_position"][:, :3]
     R = mat_to_rot6d(euler_to_rmat(trajectory["action_dict"]["cartesian_position"][:, 3:6]))
@@ -39,13 +41,26 @@ def droid_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     return trajectory
 
 
+def droid_dataset_transform_rel(trajectory: Dict[str, Any]) -> Dict[str, Any]:
+    # relative cartesian control
+    # every input feature is batched, ie has leading batch dimension
+    T = trajectory["action_dict"]["cartesian_velocity"][:, :3]
+    R = trajectory["action_dict"]["cartesian_velocity"][:, 3:6]
+    trajectory["action"] = tf.concat(
+        (
+            T,
+            R,
+            trajectory["action_dict"]["gripper_velocity"],
+        ),
+        axis=-1,
+    )
+    return trajectory
+
+
 def robomimic_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "obs": {
-            "camera/image/varied_camera_1_left_image": 
-                tf.cast(trajectory["observation"]["image_primary"], tf.float32) / 255.,
-            "camera/image/varied_camera_2_left_image": 
-                tf.cast(trajectory["observation"]["image_secondary"], tf.float32) / 255.,
+            "static_image": trajectory["observation"]["image_primary"],
             "raw_language": trajectory["task"]["language_instruction"],
             "robot_state/cartesian_position": trajectory["observation"]["proprio"][..., :6],
             "robot_state/gripper_position": trajectory["observation"]["proprio"][..., -1:],
@@ -55,8 +70,7 @@ def robomimic_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 DROID_TO_RLDS_OBS_KEY_MAP = {
-    "camera/image/varied_camera_1_left_image": "exterior_image_1_left",
-    "camera/image/varied_camera_2_left_image": "exterior_image_2_left"
+    "static_image": "static_image",
 }
 
 DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP = {

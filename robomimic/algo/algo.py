@@ -402,11 +402,9 @@ class PolicyAlgo(Algo):
     def compute_batch_visualize(self, batch, num_samples, savedir=None):
         visualize = savedir is not None
 
-        varied_cam_1_images = batch["obs"]['camera/image/varied_camera_1_left_image'][:num_samples][:, 0, :, :, :]
-        varied_cam_2_images = batch["obs"]['camera/image/varied_camera_2_left_image'][:num_samples][:, 0, :, :, :]
+        static_cam_images = batch["obs"]['static_image'][:num_samples][:, 0, :, :, :]
         images = {
-            "varied_camera_1_image": varied_cam_1_images,
-            "varied_camera_2_image": varied_cam_2_images
+            "static_camera_image": static_cam_images,
         }
 
         if visualize:

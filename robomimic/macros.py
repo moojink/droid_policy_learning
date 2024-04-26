@@ -9,7 +9,7 @@ DEBUG = False
 VISUALIZE_RANDOMIZER = False
 
 # wandb entity (eg. username or team name)
-WANDB_ENTITY = None
+WANDB_ENTITY = "moojink"
 
 # wandb api key (obtain from https://wandb.ai/authorize)
 # alternatively, set up wandb from terminal with `wandb login`

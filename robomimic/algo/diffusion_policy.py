@@ -77,7 +77,6 @@ class DiffusionPolicyUNet(PolicyAlgo):
             encoder_kwargs=encoder_kwargs,
         )
 
-
         # IMPORTANT!
         # replace all BatchNorm with GroupNorm to work with EMA
         # performance will tank if you forget to do this!
@@ -134,7 +133,12 @@ class DiffusionPolicyUNet(PolicyAlgo):
         self.action_check_done = False
         self.obs_queue = None
         self.action_queue = None
-    
+
+        # Set observation, action, and prediction horizon lengths. Set action dim as well.
+        self.To = self.algo_config.horizon.observation_horizon
+        self.Ta = self.algo_config.horizon.action_horizon
+        self.Tp = self.algo_config.horizon.prediction_horizon
+
     def process_batch_for_training(self, batch):
         """
         Processes input batch from a data loader to filter out
@@ -148,27 +152,24 @@ class DiffusionPolicyUNet(PolicyAlgo):
             input_batch (dict): processed and filtered batch that
                 will be used for training 
         """
-        To = self.algo_config.horizon.observation_horizon
-        Ta = self.algo_config.horizon.action_horizon
-        Tp = self.algo_config.horizon.prediction_horizon
 
         input_batch = dict()
 
         ## Semi-hacky fix which does the filtering for raw language which is just a list of lists of strings
-        input_batch["obs"] = {k: batch["obs"][k][:, :To, :] for k in batch["obs"] if "raw" not in k }
+        input_batch["obs"] = {k: batch["obs"][k][:, :self.To, :] for k in batch["obs"] if "raw" not in k }
         if "lang_fixed/language_raw" in batch["obs"].keys():
             str_ls = list(batch['obs']['lang_fixed/language_raw'][0])
-            input_batch["obs"]["lang_fixed/language_raw"] = [str_ls] * To
+            input_batch["obs"]["lang_fixed/language_raw"] = [str_ls] * self.To
 
         with torch.no_grad():
             if "raw_language" in batch["obs"].keys():
                 raw_lang_strings = [byte_string.decode('utf-8') for byte_string in batch["obs"]['raw_language']]
                 encoded_input = tokenizer(raw_lang_strings, padding=True, truncation=True, return_tensors='pt').to('cuda')
                 outputs = lang_model(**encoded_input)
-                encoded_lang = outputs.last_hidden_state.sum(1).squeeze().unsqueeze(1).repeat(1, To, 1)
+                encoded_lang = outputs.last_hidden_state.sum(1).squeeze().unsqueeze(1).repeat(1, self.To, 1)
                 input_batch["obs"]["lang_fixed/language_distilbert"] = encoded_lang.type(torch.float32)
 
-        input_batch["actions"] = batch["actions"][:, :Tp, :]
+        input_batch["actions"] = batch["actions"][:, :self.Tp, :]
         
         # check if actions are normalized to [-1,1]
         if not self.action_check_done:
@@ -193,7 +194,7 @@ class DiffusionPolicyUNet(PolicyAlgo):
         input_batch["actions"] = torch.nan_to_num(input_batch["actions"])
         
         return TensorUtils.to_device(TensorUtils.to_float(input_batch), self.device)
-        
+
     def train_on_batch(self, batch, epoch, validate=False):
         """
         Training on a single batch of data.
@@ -211,13 +212,8 @@ class DiffusionPolicyUNet(PolicyAlgo):
             info (dict): dictionary of relevant inputs, outputs, and losses
                 that might be relevant for logging
         """
-        To = self.algo_config.horizon.observation_horizon
-        Ta = self.algo_config.horizon.action_horizon
-        Tp = self.algo_config.horizon.prediction_horizon
-        action_dim = self.ac_dim
         B = batch['actions'].shape[0]
 
-        
         with TorchUtils.maybe_no_grad(no_grad=validate):
             info = super(DiffusionPolicyUNet, self).train_on_batch(batch, epoch, validate=validate)
             actions = batch['actions']
@@ -232,7 +228,7 @@ class DiffusionPolicyUNet(PolicyAlgo):
                     continue
                 # first two dimensions should be [B, T] for inputs
                 assert inputs['obs'][k].ndim - 2 == len(self.obs_shapes[k])
-            
+
             obs_features = TensorUtils.time_distributed({"obs":inputs["obs"]}, self.nets['policy']['obs_encoder'], inputs_as_kwargs=True)
             assert obs_features.ndim == 3  # [B, T, D]
             obs_cond = obs_features.flatten(start_dim=1)
@@ -256,15 +252,15 @@ class DiffusionPolicyUNet(PolicyAlgo):
 
             obs_cond = obs_cond.repeat(num_noise_samples, 1)
             timesteps = timesteps.repeat(num_noise_samples)
-            
+
             # predict the noise residual
             noise_pred = self.nets['policy']['noise_pred_net'](
                 noisy_actions, timesteps, global_cond=obs_cond)
-            
+
             # L2 loss
             noise = noise.view(noise.size(0) * noise.size(1), *noise.size()[2:])
             loss = F.mse_loss(noise_pred, noise)
-            
+
             # logging
             losses = {
                 'l2_loss': loss
@@ -289,7 +285,7 @@ class DiffusionPolicyUNet(PolicyAlgo):
                 info.update(step_info)
 
         return info
-    
+
     def log_info(self, info):
         """
         Process info dictionary from @train_on_batch to summarize
@@ -306,22 +302,20 @@ class DiffusionPolicyUNet(PolicyAlgo):
         if "policy_grad_norms" in info:
             log["Policy_Grad_Norms"] = info["policy_grad_norms"]
         return log
-    
+
     def reset(self):
         """
         Reset algo state to prepare for environment rollouts.
         """
         # setup inference queues
-        To = self.algo_config.horizon.observation_horizon
-        Ta = self.algo_config.horizon.action_horizon
-        obs_queue = deque(maxlen=To)
-        action_queue = deque(maxlen=Ta)
+        obs_queue = deque(maxlen=self.To)
+        action_queue = deque(maxlen=self.Ta)
         self.obs_queue = obs_queue
         self.action_queue = action_queue
-        
+
     def get_action(self, obs_dict, goal_mode=None, eval_mode=False):
         """
-        Get policy action outputs.
+        Get policy action.
 
         Args:
             obs_dict (dict): current observation [1, Do]
@@ -332,134 +326,104 @@ class DiffusionPolicyUNet(PolicyAlgo):
         """
 
         # obs_dict: key: [1,D]
-        To = self.algo_config.horizon.observation_horizon
-        Ta = self.algo_config.horizon.action_horizon
 
         if eval_mode:
-            from droid.misc.parameters import hand_camera_id, varied_camera_1_id, varied_camera_2_id
+            from droid.misc.parameters import hand_camera_id, static_camera_id
             root_path = os.path.join(os. getcwd(), "eval_params")
 
-            if goal_mode is not None:
+            if goal_mode is not None:  # goal conditioning
                 # Read in goal images
-                goal_hand_camera_left_image = torch.FloatTensor((cv2.cvtColor(cv2.imread(os.path.join(root_path, f"{hand_camera_id}_left.png")), cv2.COLOR_BGR2RGB) / 255.0)).cuda().permute(2, 0, 1).unsqueeze(0).repeat([1, 1, 1, 1]).unsqueeze(0)
-                goal_hand_camera_right_image = torch.FloatTensor((cv2.cvtColor(cv2.imread(os.path.join(root_path, f"{hand_camera_id}_right.png")), cv2.COLOR_BGR2RGB) / 255.0)).cuda().permute(2, 0, 1).unsqueeze(0).repeat([1, 1, 1, 1]).unsqueeze(0)
-                goal_varied_camera_1_left_image = torch.FloatTensor((cv2.cvtColor(cv2.imread(os.path.join(root_path, f"{varied_camera_1_id}_left.png")), cv2.COLOR_BGR2RGB) / 255.0)).cuda().permute(2, 0, 1).unsqueeze(0).repeat([1, 1, 1, 1]).unsqueeze(0)
-                goal_varied_camera_1_right_image = torch.FloatTensor((cv2.cvtColor(cv2.imread(os.path.join(root_path, f"{varied_camera_1_id}_right.png")), cv2.COLOR_BGR2RGB) / 255.0)).cuda().permute(2, 0, 1).unsqueeze(0).repeat([1, 1, 1, 1]).unsqueeze(0)
-                goal_varied_camera_2_left_image = torch.FloatTensor((cv2.cvtColor(cv2.imread(os.path.join(root_path, f"{varied_camera_2_id}_left.png")), cv2.COLOR_BGR2RGB) / 255.0)).cuda().permute(2, 0, 1).unsqueeze(0).repeat([1, 1, 1, 1]).unsqueeze(0)
-                goal_varied_camera_2_right_image = torch.FloatTensor((cv2.cvtColor(cv2.imread(os.path.join(root_path, f"{varied_camera_2_id}_right.png")), cv2.COLOR_BGR2RGB) / 255.0)).cuda().permute(2, 0, 1).unsqueeze(0).repeat([1, 1, 1, 1]).unsqueeze(0)
+                goal_hand_camera_image = torch.FloatTensor((cv2.cvtColor(cv2.imread(os.path.join(root_path, f"{hand_camera_id}.png")), cv2.COLOR_BGR2RGB) / 255.0)).cuda().permute(2, 0, 1).unsqueeze(0).repeat([1, 1, 1, 1]).unsqueeze(0)
+                goal_static_camera_image = torch.FloatTensor((cv2.cvtColor(cv2.imread(os.path.join(root_path, f"{static_camera_id}.png")), cv2.COLOR_BGR2RGB) / 255.0)).cuda().permute(2, 0, 1).unsqueeze(0).repeat([1, 1, 1, 1]).unsqueeze(0)
 
-                obs_dict['camera/image/hand_camera_left_image'] = torch.cat([obs_dict['camera/image/hand_camera_left_image'], goal_hand_camera_left_image.repeat(1, To, 1, 1, 1)], dim=2) 
-                obs_dict['camera/image/hand_camera_right_image'] = torch.cat([obs_dict['camera/image/hand_camera_right_image'], goal_hand_camera_right_image.repeat(1, To, 1, 1, 1)], dim=2) 
-                obs_dict['camera/image/varied_camera_1_left_image'] = torch.cat([obs_dict['camera/image/varied_camera_1_left_image'], goal_varied_camera_1_left_image.repeat(1, To, 1, 1, 1)], dim=2) 
-                obs_dict['camera/image/varied_camera_1_right_image'] = torch.cat([obs_dict['camera/image/varied_camera_1_right_image'] , goal_varied_camera_1_right_image.repeat(1, To, 1, 1, 1)], dim=2) 
-                obs_dict['camera/image/varied_camera_2_left_image'] = torch.cat([obs_dict['camera/image/varied_camera_2_left_image'] , goal_varied_camera_2_left_image.repeat(1, To, 1, 1, 1)], dim=2) 
-                obs_dict['camera/image/varied_camera_2_right_image'] = torch.cat([obs_dict['camera/image/varied_camera_2_right_image'], goal_varied_camera_2_right_image.repeat(1, To, 1, 1, 1)], dim=2) 
+                obs_dict['wrist_image'] = torch.cat([obs_dict['wrist_image'], goal_hand_camera_image.repeat(1, self.To, 1, 1, 1)], dim=2)
+                obs_dict['static_image'] = torch.cat([obs_dict['static_image'], goal_static_camera_image.repeat(1, self.To, 1, 1, 1)], dim=2)
             # Note: currently assumes that you are never doing both goal and language conditioning
-            else:
-                # Reads in current language instruction from file and fills the appropriate obs key, only will
-                # actually use it if the policy uses language instructions
+            else:  # language conditioning
+                # Read in current language instruction from file and fill in the appropriate observation key.
                 with open(os.path.join(root_path, "lang_command.txt"), 'r') as file:
                     raw_lang = file.read()
-
-                encoded_input = tokenizer(raw_lang, return_tensors='pt').to('cuda')
-                outputs = lang_model(**encoded_input)
-                encoded_lang = outputs.last_hidden_state.sum(1).squeeze().unsqueeze(0).repeat(To, 1).unsqueeze(0)
+                # Feed language instruction through language model.
+                tokenized_lang = tokenizer(raw_lang, return_tensors='pt').to('cuda')
+                outputs = lang_model(**tokenized_lang)  # (1, seq_len, transformer_dim)
+                # To get language embedding, sum over the hidden states for the tokens in the sequence, and then replicate
+                # the result `To` == `observation_horizon` times.
+                encoded_lang = outputs.last_hidden_state.sum(1).squeeze().unsqueeze(0).repeat(self.To, 1).unsqueeze(0) # (1, To, transformer_dim)
                 obs_dict["lang_fixed/language_distilbert"] = encoded_lang.type(torch.float32)
 
         ###############################
 
-        # TODO: obs_queue already handled by frame_stack
-        # make sure we have at least To observations in obs_queue
-        # if not enough, repeat
-        # if already full, append one to the obs_queue
-        # n_repeats = max(To - len(self.obs_queue), 1)
-        # self.obs_queue.extend([obs_dict] * n_repeats)
-        
+        # If there are no actions left to execute, run inference to predict another action chunk.
         if len(self.action_queue) == 0:
-            # no actions left, run inference
-            # turn obs_queue into dict of tensors (concat at T dim)
-            # import pdb; pdb.set_trace()
-            # obs_dict_list = TensorUtils.list_of_flat_dict_to_dict_of_list(list(self.obs_queue))
-            # obs_dict_tensor = dict((k, torch.cat(v, dim=0).unsqueeze(0)) for k,v in obs_dict_list.items())
-            
-            # run inference
-            # [1,T,Da]
-            action_sequence = self._get_action_trajectory(obs_dict=obs_dict)
-            
-            # put actions into the queue
+            print(f"Predicting new action chunk...")
+            # Predict action chunk.
+            action_sequence = self._get_action_trajectory(obs_dict=obs_dict)  # (1, Ta, ac_dim)
+            # Store action chunk in queue.
             self.action_queue.extend(action_sequence[0])
-        
-        # has action, execute from left to right
-        # [Da]
+
+        # Execute first action in queue.
         action = self.action_queue.popleft()
-        
-        # [1,Da]
-        action = action.unsqueeze(0)
+
+        action = action.unsqueeze(0)  # (1, ac_dim)
         return action
-        
+
     def _get_action_trajectory(self, obs_dict):
-        assert not self.nets.training
-        To = self.algo_config.horizon.observation_horizon
-        Ta = self.algo_config.horizon.action_horizon
-        Tp = self.algo_config.horizon.prediction_horizon
-        action_dim = self.ac_dim
+        # Set number of diffusion inference timesteps based on DDPM or DDIM.
         if self.algo_config.ddpm.enabled is True:
             num_inference_timesteps = self.algo_config.ddpm.num_inference_timesteps
         elif self.algo_config.ddim.enabled is True:
             num_inference_timesteps = self.algo_config.ddim.num_inference_timesteps
         else:
             raise ValueError
-        
-        # select network
+
+        # Select network.
         nets = self.nets
         if self.ema is not None:
             nets = self.ema.averaged_model
         
-        # encode obs
+        # Get observations.
         inputs = {
             'obs': obs_dict,
         }
+
+        # Check that obsercations have the right shape.
         for k in self.obs_shapes:
-            ## Shape assertion does not apply to list of strings for raw language
+            # Skip language strings.
             if "raw" in k:
                 continue
-            # first two dimensions should be [B, T] for inputs
-            assert inputs['obs'][k].ndim - 2 == len(self.obs_shapes[k])
+            assert inputs['obs'][k].ndim - 2 == len(self.obs_shapes[k]), "First two dimensions should be [B, To] for inputs!"
+
+        # Encode observations, which are used to condition the reverse diffusion process.
         obs_features = TensorUtils.time_distributed({"obs":inputs["obs"]}, nets['policy']['obs_encoder'].module, inputs_as_kwargs=True)
-        assert obs_features.ndim == 3  # [B, T, D]
+        assert obs_features.ndim == 3  # [B, To, D]
         B = obs_features.shape[0]
 
-        # reshape observation to (B,obs_horizon*obs_dim)
+        # Reshape observations to (B, observation_horizon * observation_dim) == (B, To * D).
         obs_cond = obs_features.flatten(start_dim=1)
 
-
-        # initialize action from Guassian noise
-        noisy_action = torch.randn(
-            (B, Tp, action_dim), device=self.device)
-        naction = noisy_action
+        # Initialize action from randomly sampled Guassian noise of shape (B, Tp, ac_dim).
+        noisy_action = torch.randn((B, self.Tp, self.ac_dim), device=self.device)
         
-        # init scheduler
+        # Initialize noise scheduler.
         self.noise_scheduler.set_timesteps(num_inference_timesteps)
 
+        # Predict action via reverse diffusion.
         for k in self.noise_scheduler.timesteps:
-            # predict noise
+            # Predict noise.
             noise_pred = nets['policy']['noise_pred_net'].module(
-                sample=naction, 
+                sample=noisy_action,
                 timestep=k,
                 global_cond=obs_cond
             )
-
-            # inverse diffusion step (remove noise)
-            naction = self.noise_scheduler.step(
+            # Apply inverse diffusion step (remove noise).
+            noisy_action = self.noise_scheduler.step(
                 model_output=noise_pred,
                 timestep=k,
-                sample=naction
+                sample=noisy_action
             ).prev_sample
 
-        # process action using Ta
-        start = To - 1
-        end = start + Ta
-        action = naction[:,start:end]
+        # Receding horizon control: Extract only the first `Ta` == `action_horizon` steps of actions.
+        action = noisy_action[:,:self.Ta]  # (B, Ta, ac_dim)
         return action
 
     def serialize(self):
@@ -483,9 +447,7 @@ class DiffusionPolicyUNet(PolicyAlgo):
         if model_dict.get("ema", None) is not None:
             self.ema.averaged_model.load_state_dict(model_dict["ema"])
 
-    
-            
-            
+
 
 # =================== Vision Encoder Utils =====================
 def replace_submodules(
