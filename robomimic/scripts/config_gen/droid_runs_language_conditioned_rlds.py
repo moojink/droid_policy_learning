@@ -17,7 +17,7 @@ EXP_NAMES = OrderedDict(
         # Note: you can add co-training dataset here appending
         # a new dataset to "datasets" and adjusting "sample_weights"
         # accordingly
-        ("mjk_panda_4", {"datasets": ["mjk_panda_4"],
+        ("tdroid_carrot_in_bowl", {"datasets": ["tdroid_carrot_in_bowl"],
                    "sample_weights": [1]})                                    
     ])
 
@@ -212,7 +212,8 @@ def make_generator_helper(args):
             name="",
             group=-1,
             values=[
-                [128, 128],
+                # [128, 128],
+                [224, 224],
             ],
             hidename=True,
         )
