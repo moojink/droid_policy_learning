@@ -247,8 +247,11 @@ def make_generator_helper(args):
             name="obsrandargs",
             group=130,
             values=[
-                # {}, # jitter only
-                [{}, {"crop_height": 116, "crop_width": 116, "num_crops": 1, "pos_enc": False}], # jitter, followed by crop
+                # # For 128x128 images
+                # [{}, {"crop_height": 116, "crop_width": 116, "num_crops": 1, "pos_enc": False}], # jitter, followed by crop
+
+                # For 224x224 images
+                [{}, {"crop_height": 202, "crop_width": 202, "num_crops": 1, "pos_enc": False}], # jitter, followed by crop
             ],
             hidename=True,
         )
