@@ -44,7 +44,15 @@ from robomimic.utils.dataset import action_stats_to_normalization_stats
 from robomimic.config import config_factory
 from robomimic.algo import algo_factory, RolloutPolicy
 from robomimic.utils.log_utils import PrintLogger, DataLogger, flush_warnings
-from robomimic.utils.rlds_utils import droid_dataset_transform_abs, droid_dataset_transform_rel, robomimic_transform, DROID_TO_RLDS_OBS_KEY_MAP, DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP, TorchRLDSDataset
+from robomimic.utils.rlds_utils import (
+    droid_dataset_transform_abs, 
+    droid_dataset_transform_rel, 
+    libero_dataset_transform, 
+    robomimic_transform, 
+    DROID_TO_RLDS_OBS_KEY_MAP, 
+    DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP, 
+    TorchRLDSDataset
+)
 
 from octo.data.dataset import make_dataset_from_rlds, make_interleaved_dataset
 from octo.data.utils.data_utils import combine_dataset_statistics
@@ -100,33 +108,37 @@ def train(config, device):
         action_mask = [True] * ac_dim
 
         # Set base dataset kwargs.
-        if "action/rel_pos" in config.train.action_keys:
-            assert "action/abs_pos" not in config.train.action_keys
-            droid_dataset_transform = droid_dataset_transform_rel
-        else:
-            droid_dataset_transform = droid_dataset_transform_abs
+        # if "action/rel_pos" in config.train.action_keys:
+        #     assert "action/abs_pos" not in config.train.action_keys
+        #     droid_dataset_transform = droid_dataset_transform_rel
+        # else:
+        #     droid_dataset_transform = droid_dataset_transform_abs
         BASE_DATASET_KWARGS = {
             "data_dir": config.train.data_path,
-            "image_obs_keys": {"primary": obs_modalities[0], "secondary": None},
-            "state_obs_keys": [DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP[obs_key] for obs_key in config.observation.modalities.obs.low_dim],
+            "image_obs_keys": {"primary": "image", "secondary": None},
+            "state_obs_keys": ["state"], #DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP[obs_key] for obs_key in config.observation.modalities.obs.low_dim],
             "language_key": "language_instruction",
             "norm_skip_keys": ["proprio"],
             "action_proprio_normalization_type": "bounds",
             "absolute_action_mask": action_mask,
             "action_normalization_mask": action_mask,
-            "standardize_fn": droid_dataset_transform,
+            "standardize_fn": libero_dataset_transform,
          }
 
         # Filter out failure episodes if applicable.
         dataset_names = config.train.dataset_names
-        filter_functions = [[ModuleSpec.create(
-                                "robomimic.utils.rlds_utils:filter_success"
-                                )] if d_name == "droid" else [] \
-                            for d_name in dataset_names]
+        filter_functions = [] 
+                            # [[ModuleSpec.create(
+                            #     "robomimic.utils.rlds_utils:filter_success"
+                            #     )] if d_name == "droid" else [] \
+                            # for d_name in dataset_names]
 
         # Set dataset kwargs list.
+        # dataset_kwargs_list = [
+        #     {"name": d_name, "filter_functions": f_functions, **BASE_DATASET_KWARGS} for d_name, f_functions in zip(dataset_names, filter_functions)
+        # ]
         dataset_kwargs_list = [
-            {"name": d_name, "filter_functions": f_functions, **BASE_DATASET_KWARGS} for d_name, f_functions in zip(dataset_names, filter_functions)
+            {"name": d_name, **BASE_DATASET_KWARGS} for d_name in dataset_names
         ]
 
         # Compute combined normalization stats.

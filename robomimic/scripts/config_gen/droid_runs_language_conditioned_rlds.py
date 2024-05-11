@@ -10,14 +10,14 @@ from collections import OrderedDict
 # Note: Assumes naming of dataset in "datasets" for the full DROID dataset is
 # droid
 
-DATA_PATH = "/iris/u/moojink/data/"    # UPDATE WITH PATH TO RLDS DATASETS
-EXP_LOG_PATH = "/iris/u/moojink/prismatic-dev/droid_dp_runs/" # UPDATE WITH PATH TO DESIRED LOGGING DIRECTORY
+DATA_PATH = "/shared/karl/data/"    # UPDATE WITH PATH TO RLDS DATASETS
+EXP_LOG_PATH = "/shared/karl/models/diffusion_policy" # UPDATE WITH PATH TO DESIRED LOGGING DIRECTORY
 EXP_NAMES = OrderedDict(
     [
         # Note: you can add co-training dataset here appending
         # a new dataset to "datasets" and adjusting "sample_weights"
         # accordingly
-        ("tdroid_carrot_in_bowl", {"datasets": ["tdroid_carrot_in_bowl"],
+        ("libero_spatial", {"datasets": ["libero_spatial"],
                    "sample_weights": [1]})                                    
     ])
 
@@ -212,8 +212,8 @@ def make_generator_helper(args):
             name="",
             group=-1,
             values=[
-                # [128, 128],
-                [224, 224],
+                [128, 128],
+                # [224, 224],
             ],
             hidename=True,
         )
