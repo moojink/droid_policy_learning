@@ -328,11 +328,11 @@ class DiffusionPolicyUNet(PolicyAlgo):
         # obs_dict: key: [1,D]
 
         if eval_mode:
-            from droid.misc.parameters import hand_camera_id, static_camera_id
             root_path = os.path.join(os. getcwd(), "eval_params")
 
             if goal_mode is not None:  # goal conditioning
                 # Read in goal images
+                from droid.misc.parameters import hand_camera_id, static_camera_id
                 goal_hand_camera_image = torch.FloatTensor((cv2.cvtColor(cv2.imread(os.path.join(root_path, f"{hand_camera_id}.png")), cv2.COLOR_BGR2RGB) / 255.0)).cuda().permute(2, 0, 1).unsqueeze(0).repeat([1, 1, 1, 1]).unsqueeze(0)
                 goal_static_camera_image = torch.FloatTensor((cv2.cvtColor(cv2.imread(os.path.join(root_path, f"{static_camera_id}.png")), cv2.COLOR_BGR2RGB) / 255.0)).cuda().permute(2, 0, 1).unsqueeze(0).repeat([1, 1, 1, 1]).unsqueeze(0)
 
@@ -355,7 +355,7 @@ class DiffusionPolicyUNet(PolicyAlgo):
 
         # If there are no actions left to execute, run inference to predict another action chunk.
         if len(self.action_queue) == 0:
-            print(f"Predicting new action chunk...")
+            # print(f"Predicting new action chunk...")
             # Predict action chunk.
             action_sequence = self._get_action_trajectory(obs_dict=obs_dict)  # (1, Ta, ac_dim)
             # Store action chunk in queue.
