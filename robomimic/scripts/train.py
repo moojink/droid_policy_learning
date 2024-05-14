@@ -48,6 +48,7 @@ from robomimic.utils.rlds_utils import (
     droid_dataset_transform_abs, 
     droid_dataset_transform_rel, 
     libero_dataset_transform, 
+    calvin_dataset_transform,
     robomimic_transform, 
     DROID_TO_RLDS_OBS_KEY_MAP, 
     DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP, 
@@ -115,14 +116,14 @@ def train(config, device):
         #     droid_dataset_transform = droid_dataset_transform_abs
         BASE_DATASET_KWARGS = {
             "data_dir": config.train.data_path,
-            "image_obs_keys": {"primary": "image", "secondary": None},
+            "image_obs_keys": {"primary": "rgb_static", "secondary": None},
             "state_obs_keys": ["state"], #DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP[obs_key] for obs_key in config.observation.modalities.obs.low_dim],
             "language_key": "language_instruction",
             "norm_skip_keys": ["proprio"],
             "action_proprio_normalization_type": "bounds",
             "absolute_action_mask": action_mask,
             "action_normalization_mask": action_mask,
-            "standardize_fn": libero_dataset_transform,
+            "standardize_fn": calvin_dataset_transform,
          }
 
         # Filter out failure episodes if applicable.
@@ -371,7 +372,7 @@ def train(config, device):
         epoch_ckpt_name = "model_epoch_{}".format(epoch)
 
         # Check whether we should save checkpoint.
-        should_save_ckpt = False
+        should_save_ckpt = True #False
         if config.experiment.save.enabled:
             time_check = (config.experiment.save.every_n_seconds is not None) and \
                 (time.time() - last_ckpt_time > config.experiment.save.every_n_seconds)
@@ -379,6 +380,7 @@ def train(config, device):
                 (epoch > 0) and (epoch % config.experiment.save.every_n_epochs == 0)
             epoch_list_check = (epoch in config.experiment.save.epochs)
             should_save_ckpt = (time_check or epoch_check or epoch_list_check)
+        should_save_ckpt = True
         ckpt_reason = None
         if should_save_ckpt:
             last_ckpt_time = time.time()

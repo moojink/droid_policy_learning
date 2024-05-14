@@ -17,7 +17,7 @@ EXP_NAMES = OrderedDict(
         # Note: you can add co-training dataset here appending
         # a new dataset to "datasets" and adjusting "sample_weights"
         # accordingly
-        ("libero_spatial", {"datasets": ["libero_spatial"],
+        ("calvin", {"datasets": ["calvin"],
                    "sample_weights": [1]})                                    
     ])
 

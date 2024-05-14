@@ -108,6 +108,12 @@ def libero_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     )
     return trajectory
 
+def calvin_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
+    trajectory["observation"]["EEF_state"] = trajectory["observation"]["state"][:, :6]
+    trajectory["observation"]["gripper_state"] = trajectory["observation"]["state"][:, 6:7]
+    trajectory["observation"]["proprio"] = trajectory["observation"]["state"][:, :7]
+    return trajectory
+
 
 def robomimic_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     return {
