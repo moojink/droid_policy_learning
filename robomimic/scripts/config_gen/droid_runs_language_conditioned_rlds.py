@@ -212,8 +212,8 @@ def make_generator_helper(args):
             name="",
             group=-1,
             values=[
-                [128, 128],
-                # [224, 224],
+                # [128, 128],
+                [224, 224],
             ],
             hidename=True,
         )
@@ -248,7 +248,8 @@ def make_generator_helper(args):
             group=130,
             values=[
                 # {}, # jitter only
-                [{}, {"crop_height": 116, "crop_width": 116, "num_crops": 1, "pos_enc": False}], # jitter, followed by crop
+                # [{}, {"crop_height": 116, "crop_width": 116, "num_crops": 1, "pos_enc": False}], # jitter, followed by crop
+                [{}, {"crop_height": 202, "crop_width": 202, "num_crops": 1, "pos_enc": False}], # jitter, followed by crop
             ],
             hidename=True,
         )
