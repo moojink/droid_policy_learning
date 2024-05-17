@@ -78,8 +78,8 @@
         },
         "horizon": {
             "observation_horizon": 2,
-            "action_horizon": 3,
-            "prediction_horizon": 8
+            "action_horizon": 8,
+            "prediction_horizon": 16
         },
         "unet": {
             "enabled": true,

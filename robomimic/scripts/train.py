@@ -123,7 +123,7 @@ def train(config, device):
             "action_proprio_normalization_type": "bounds",
             "absolute_action_mask": action_mask,
             "action_normalization_mask": action_mask,
-            "standardize_fn": droid_dataset_transform_rel,
+            "standardize_fn": droid_dataset_transform_abs,
          }
 
         # Filter out failure episodes if applicable.

@@ -11,7 +11,7 @@ from collections import OrderedDict
 # droid
 
 DATA_PATH = "/shared/karl/data/"    # UPDATE WITH PATH TO RLDS DATASETS
-EXP_LOG_PATH = "/shared/karl/models/diffusion_policy" # UPDATE WITH PATH TO DESIRED LOGGING DIRECTORY
+EXP_LOG_PATH = "/shared/karl/models/diffusion_policy_abs" # UPDATE WITH PATH TO DESIRED LOGGING DIRECTORY
 EXP_NAMES = OrderedDict(
     [
         # Note: you can add co-training dataset here appending
@@ -170,14 +170,14 @@ def make_generator_helper(args):
             values=[
                 [
                     # # Absolute position control
-                    # "action/abs_pos",
-                    # "action/abs_rot_6d",
-                    # "action/gripper_position",
+                    "action/abs_pos",
+                    "action/abs_rot_6d",
+                    "action/gripper_position",
 
                     # Relative position control
-                    "action/rel_pos",
-                    "action/rel_rot_euler",
-                    "action/gripper_velocity",
+                    # "action/rel_pos",
+                    # "action/rel_rot_euler",
+                    # "action/gripper_velocity",
                 ],
             ],
             value_names=[
@@ -192,14 +192,14 @@ def make_generator_helper(args):
             values=[
                 [
                     # # Absolute position control (w/ 6D rot)
-                    # (1, 3),
-                    # (1, 6),
-                    # (1, 1),
+                    (1, 3),
+                    (1, 6),
+                    (1, 1),
 
                     # Relative position control (w/ 3D rot)
-                    (1, 3),
-                    (1, 3),
-                    (1, 1),
+                    # (1, 3),
+                    # (1, 3),
+                    # (1, 1),
                 ],
             ],
             value_names=[
