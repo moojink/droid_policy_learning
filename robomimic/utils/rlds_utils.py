@@ -102,7 +102,42 @@ def libero_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     trajectory["observation"]["proprio"] = tf.concat(
         (
             trajectory["observation"]["state"][:, :6],
-            trajectory["observation"]["state"][:, -2:] ,
+            trajectory["observation"]["state"][:, -2:],
+        ),
+        axis=-1,
+    )
+    return trajectory
+
+
+def libero_dataset_transform_abs(trajectory: Dict[str, Any]) -> Dict[str, Any]:
+    dT = trajectory["action"][:, :3]
+    T = trajectory["observation"]["state"][:, :3]
+    T_prime = T + dT
+
+    dR = euler_to_rmat(trajectory["action"][:, 3:6])
+    R = euler_to_rmat(trajectory["observation"]["state"][:, 3:6])
+    R_prime = mat_to_rot6d(dR @ R)
+
+    dG = binarize_gripper_actions(trajectory["action"][:, -1])[:, None]
+    G = trajectory["observation"]["state"][:, -2:-1]
+    G_prime = G + dG
+
+    trajectory["action"] = tf.concat(
+        [
+            T_prime,
+            R_prime,
+            G_prime
+        ],
+        axis=1,
+    )
+
+    trajectory["observation"]["EEF_state"] = trajectory["observation"]["state"][:, :6]
+    trajectory["observation"]["gripper_state"] = trajectory["observation"]["state"][:, -2:]  # 2D gripper state
+
+    trajectory["observation"]["proprio"] = tf.concat(
+        (
+            trajectory["observation"]["state"][:, :6],
+            trajectory["observation"]["state"][:, -2:],
         ),
         axis=-1,
     )

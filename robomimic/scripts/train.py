@@ -48,6 +48,7 @@ from robomimic.utils.rlds_utils import (
     droid_dataset_transform_abs, 
     droid_dataset_transform_rel, 
     libero_dataset_transform, 
+    libero_dataset_transform_abs, 
     robomimic_transform, 
     DROID_TO_RLDS_OBS_KEY_MAP, 
     DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP, 
@@ -122,7 +123,7 @@ def train(config, device):
             "action_proprio_normalization_type": "bounds",
             "absolute_action_mask": action_mask,
             "action_normalization_mask": action_mask,
-            "standardize_fn": libero_dataset_transform,
+            "standardize_fn": libero_dataset_transform_abs,
          }
 
         # Filter out failure episodes if applicable.
