@@ -1,3 +1,16 @@
+# Moo Jin (TODO: Clean up later)
+
+```bash
+################################################################
+# DEBUG
+################################################################
+# DP relative
+python scripts/evaluation/debug/evaluate_policy_on_data.py -l --ckpt_path /iris/u/moojink/prismatic-dev/droid_dp_runs/droid/im/diffusion_policy/04-29-None/bz_128_noise_samples_8_sample_weights_1_dataset_names_mjk_panda_4_cams_static_ldkeys_proprio-lang_visenc_VisualCore_fuser_None/20240429213129/models/model_epoch_2950.pth
+
+# DP absolute
+python scripts/evaluation/debug/evaluate_policy_on_data.py -l --ckpt_path /iris/u/moojink/prismatic-dev/droid_dp_runs/droid/im/diffusion_policy/04-29-None/bz_128_noise_samples_8_sample_weights_1_dataset_names_mjk_panda_4_abs_cams_static_ldkeys_proprio-lang_visenc_VisualCore_fuser_None/20240429213208/models/model_epoch_2750.pth
+```
+
 # DROID Policy Learning and Evaluation
 
 This repository contains code for training and evaluating policies on the [DROID](https://droid-dataset.github.io) dataset. DROID is a large-scale, in-the-wild robot manipulation dataset. This codebase is built as a fork of [`robomimic`](https://robomimic.github.io/), a popular repository for imitation learning algorithm development. For more information about DROID, please see the following links: 
@@ -11,7 +24,7 @@ Create a python3 conda environment (tested with Python 3.10) and run the followi
 1. Create python 3.10 conda environment: `conda create --name droid_policy_learning_env python=3.10`
 2. Activate the conda environment: `conda activate droid_policy_learning_env`
 3. Install [octo](https://github.com/octo-models/octo/tree/main) (used for data loading)
-4. Run `pip install -e .` in `droid_policy_learning`.
+5. In `droid_policy_learning`, run: `pip install -e octo/ && pip install -e . && pip install -r requirements.txt && pip install --no-deps --force-reinstall git+https://github.com/kvablack/dlimp@ad72ce3a9b414db2185bc0b38461d4101a65477a`.
 
 With this you are all set up for training policies on DROID. If you want to evaluate your policies on a real robot DROID setup, 
 please install the DROID robot controller in the same conda environment (follow the instructions [here](https://github.com/droid-dataset/droid)).
