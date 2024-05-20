@@ -393,6 +393,9 @@ class DiffusionPolicyUNet(PolicyAlgo):
                 continue
             assert inputs['obs'][k].ndim - 2 == len(self.obs_shapes[k]), "First two dimensions should be [B, To] for inputs!"
 
+        # Extract only the first `self.To` steps of observations.
+        inputs["obs"] = {k: inputs["obs"][k][:, :self.To, :] for k in inputs["obs"]}
+
         # Encode observations, which are used to condition the reverse diffusion process.
         obs_features = TensorUtils.time_distributed({"obs":inputs["obs"]}, nets['policy']['obs_encoder'].module, inputs_as_kwargs=True)
         assert obs_features.ndim == 3  # [B, To, D]
@@ -707,6 +710,12 @@ class ConditionalUnet1D(nn.Module):
         sample = sample.moveaxis(-1,-2)
         # (B,C,T)
 
+        # If there is only 1 action (i.e. no action chunk), do not down-/up-sample.
+        if sample.shape[-1] == 1:
+            resize_sample = False
+        else:
+            resize_sample = True
+
         # 1. time
         timesteps = timestep
         if not torch.is_tensor(timesteps):
@@ -729,7 +738,8 @@ class ConditionalUnet1D(nn.Module):
             x = resnet(x, global_feature)
             x = resnet2(x, global_feature)
             h.append(x)
-            x = downsample(x)
+            if resize_sample:
+                x = downsample(x)
 
         for mid_module in self.mid_modules:
             x = mid_module(x, global_feature)
@@ -738,7 +748,8 @@ class ConditionalUnet1D(nn.Module):
             x = torch.cat((x, h.pop()), dim=1)
             x = resnet(x, global_feature)
             x = resnet2(x, global_feature)
-            x = upsample(x)
+            if resize_sample:
+                x = upsample(x)
 
         x = self.final_conv(x)
 
