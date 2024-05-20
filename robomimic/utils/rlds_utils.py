@@ -120,11 +120,11 @@ def robomimic_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
         "obs": {
             "static_image": trajectory["observation"]["image_primary"],
             "raw_language": trajectory["task"]["language_instruction"],
-            "robot_state/cartesian_position": trajectory["observation"]["proprio"][..., :6],
-            "robot_state/gripper_position": trajectory["observation"]["proprio"][..., -1:],
+            # "robot_state/cartesian_position": trajectory["observation"]["proprio"][..., :6],
+            # "robot_state/gripper_position": trajectory["observation"]["proprio"][..., -1:],
             "pad_mask": trajectory["observation"]["pad_mask"][..., None],
         },
-        "actions": trajectory["action"][1:],
+        "actions": trajectory["action"],
     }
 
 DROID_TO_RLDS_OBS_KEY_MAP = {

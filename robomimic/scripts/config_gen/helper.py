@@ -95,15 +95,15 @@ def set_env_settings(generator, args):
             group=-1,
             values=[True],
         ),
-        if "observation.modalities.obs.low_dim" not in generator.parameters:
-            generator.add_param(
-                key="observation.modalities.obs.low_dim",
-                name="",
-                group=-1,
-                values=[
-                    ["robot_state/cartesian_position", "robot_state/gripper_position"]
-                ],
-            )
+        # if "observation.modalities.obs.low_dim" not in generator.parameters:
+        #     generator.add_param(
+        #         key="observation.modalities.obs.low_dim",
+        #         name="",
+        #         group=-1,
+        #         values=[
+        #             ["robot_state/cartesian_position", "robot_state/gripper_position"]
+        #         ],
+        #     )
         if "observation.modalities.obs.rgb" not in generator.parameters:
             generator.add_param(
                 key="observation.modalities.obs.rgb",

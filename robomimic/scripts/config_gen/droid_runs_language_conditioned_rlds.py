@@ -10,8 +10,8 @@ from collections import OrderedDict
 # Note: Assumes naming of dataset in "datasets" for the full DROID dataset is
 # droid
 
-DATA_PATH = "/shared/karl/data/"    # UPDATE WITH PATH TO RLDS DATASETS
-EXP_LOG_PATH = "/shared/karl/models/diffusion_policy_abs" # UPDATE WITH PATH TO DESIRED LOGGING DIRECTORY
+DATA_PATH = "/scr/moojink/data/"    # UPDATE WITH PATH TO RLDS DATASETS
+EXP_LOG_PATH = "/iris/u/moojink/prismatic-dev/droid_dp_runs/" # UPDATE WITH PATH TO DESIRED LOGGING DIRECTORY
 EXP_NAMES = OrderedDict(
     [
         # Note: you can add co-training dataset here appending
@@ -169,15 +169,15 @@ def make_generator_helper(args):
             group=-1,
             values=[
                 [
-                    # # Absolute position control
-                    "action/abs_pos",
-                    "action/abs_rot_6d",
-                    "action/gripper_position",
+                    # # # Absolute position control
+                    # "action/abs_pos",
+                    # "action/abs_rot_6d",
+                    # "action/gripper_position",
 
                     # Relative position control
-                    # "action/rel_pos",
-                    # "action/rel_rot_euler",
-                    # "action/gripper_velocity",
+                    "action/rel_pos",
+                    "action/rel_rot_euler",
+                    "action/gripper_velocity",
                 ],
             ],
             value_names=[
@@ -191,15 +191,15 @@ def make_generator_helper(args):
             group=-1,
             values=[
                 [
-                    # # Absolute position control (w/ 6D rot)
-                    (1, 3),
-                    (1, 6),
-                    (1, 1),
+                    # # # Absolute position control (w/ 6D rot)
+                    # (1, 3),
+                    # (1, 6),
+                    # (1, 1),
 
                     # Relative position control (w/ 3D rot)
-                    # (1, 3),
-                    # (1, 3),
-                    # (1, 1),
+                    (1, 3),
+                    (1, 3),
+                    (1, 1),
                 ],
             ],
             value_names=[
@@ -274,18 +274,18 @@ def make_generator_helper(args):
         #         # 0.5
         #     ]
         # )
-        generator.add_param(
-            key="observation.modalities.obs.low_dim",
-            name="ldkeys",
-            group=24986,
-            values=[
-                ["robot_state/cartesian_position", "robot_state/gripper_position"],
-            ],
-            value_names=[
-                "proprio-lang",
-            ],
-            hidename=False,
-        )
+        # generator.add_param(
+        #     key="observation.modalities.obs.low_dim",
+        #     name="ldkeys",
+        #     group=24986,
+        #     values=[
+        #         ["robot_state/cartesian_position", "robot_state/gripper_position"],
+        #     ],
+        #     value_names=[
+        #         "proprio-lang",
+        #     ],
+        #     hidename=False,
+        # )
         # generator.add_param(
         #     key="observation.encoder.rgb.core_kwargs.backbone_kwargs.use_cam",
         #     name="",

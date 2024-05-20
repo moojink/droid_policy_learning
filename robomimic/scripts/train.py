@@ -109,11 +109,11 @@ def train(config, device):
         action_mask = [True] * ac_dim
 
         # Set base dataset kwargs.
-        # if "action/rel_pos" in config.train.action_keys:
-        #     assert "action/abs_pos" not in config.train.action_keys
-        #     droid_dataset_transform = droid_dataset_transform_rel
-        # else:
-        #     droid_dataset_transform = droid_dataset_transform_abs
+        if "action/rel_pos" in config.train.action_keys:
+            assert "action/abs_pos" not in config.train.action_keys
+            droid_dataset_transform = droid_dataset_transform_rel
+        else:
+            droid_dataset_transform = droid_dataset_transform_abs
         BASE_DATASET_KWARGS = {
             "data_dir": config.train.data_path,
             "image_obs_keys": {"primary": "exterior_image_2_left", "secondary": None},
@@ -123,7 +123,7 @@ def train(config, device):
             "action_proprio_normalization_type": "bounds",
             "absolute_action_mask": action_mask,
             "action_normalization_mask": action_mask,
-            "standardize_fn": droid_dataset_transform_abs,
+            "standardize_fn": droid_dataset_transform,
          }
 
         # Filter out failure episodes if applicable.

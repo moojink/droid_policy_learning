@@ -47,7 +47,7 @@
         "hdf5_filter_key": null,
         "seq_length": 15,
         "pad_seq_length": true,
-        "frame_stack": 2,
+        "frame_stack": 1,
         "pad_frame_stack": true,
         "dataset_keys": [
             "actions"
@@ -77,9 +77,9 @@
             }
         },
         "horizon": {
-            "observation_horizon": 2,
-            "action_horizon": 8,
-            "prediction_horizon": 16
+            "observation_horizon": 1,
+            "action_horizon": 1,
+            "prediction_horizon": 1
         },
         "unet": {
             "enabled": true,
@@ -114,12 +114,7 @@
     "observation": {
         "modalities": {
             "obs": {
-                "low_dim": [
-                    "robot0_eef_pos",
-                    "robot0_eef_quat",
-                    "robot0_gripper_qpos",
-                    "object"
-                ],
+                "low_dim": [],
                 "rgb": [],
                 "depth": [],
                 "scan": []
