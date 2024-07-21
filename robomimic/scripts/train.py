@@ -44,7 +44,17 @@ from robomimic.utils.dataset import action_stats_to_normalization_stats
 from robomimic.config import config_factory
 from robomimic.algo import algo_factory, RolloutPolicy
 from robomimic.utils.log_utils import PrintLogger, DataLogger, flush_warnings
-from robomimic.utils.rlds_utils import droid_dataset_transform_abs, droid_dataset_transform_rel, robomimic_transform, DROID_TO_RLDS_OBS_KEY_MAP, DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP, TorchRLDSDataset
+from robomimic.utils.rlds_utils import (
+    droid_dataset_transform_abs, 
+    droid_dataset_transform_rel, 
+    libero_dataset_transform, 
+    libero_dataset_transform_abs, 
+    robomimic_transform,
+    robomimic_transform_libero,
+    DROID_TO_RLDS_OBS_KEY_MAP, 
+    DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP, 
+    TorchRLDSDataset
+)
 
 from octo.data.dataset import make_dataset_from_rlds, make_interleaved_dataset
 from octo.data.utils.data_utils import combine_dataset_statistics
@@ -102,31 +112,36 @@ def train(config, device):
         # Set base dataset kwargs.
         if "action/rel_pos" in config.train.action_keys:
             assert "action/abs_pos" not in config.train.action_keys
-            droid_dataset_transform = droid_dataset_transform_rel
+            dataset_transform = droid_dataset_transform_rel
         else:
-            droid_dataset_transform = droid_dataset_transform_abs
+            dataset_transform = droid_dataset_transform_abs
+        state_obs_keys = [DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP[obs_key] for obs_key in config.observation.modalities.obs.low_dim]
         BASE_DATASET_KWARGS = {
             "data_dir": config.train.data_path,
             "image_obs_keys": {"primary": obs_modalities[0], "secondary": None},
-            "state_obs_keys": [DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP[obs_key] for obs_key in config.observation.modalities.obs.low_dim],
+            "state_obs_keys": state_obs_keys,
             "language_key": "language_instruction",
             "norm_skip_keys": ["proprio"],
             "action_proprio_normalization_type": "bounds",
             "absolute_action_mask": action_mask,
             "action_normalization_mask": action_mask,
-            "standardize_fn": droid_dataset_transform,
+            "standardize_fn": dataset_transform,
          }
 
         # Filter out failure episodes if applicable.
         dataset_names = config.train.dataset_names
-        filter_functions = [[ModuleSpec.create(
-                                "robomimic.utils.rlds_utils:filter_success"
-                                )] if d_name == "droid" else [] \
-                            for d_name in dataset_names]
+        filter_functions = [] 
+                            # [[ModuleSpec.create(
+                            #     "robomimic.utils.rlds_utils:filter_success"
+                            #     )] if d_name == "droid" else [] \
+                            # for d_name in dataset_names]
 
         # Set dataset kwargs list.
+        # dataset_kwargs_list = [
+        #     {"name": d_name, "filter_functions": f_functions, **BASE_DATASET_KWARGS} for d_name, f_functions in zip(dataset_names, filter_functions)
+        # ]
         dataset_kwargs_list = [
-            {"name": d_name, "filter_functions": f_functions, **BASE_DATASET_KWARGS} for d_name, f_functions in zip(dataset_names, filter_functions)
+            {"name": d_name, **BASE_DATASET_KWARGS} for d_name in dataset_names
         ]
 
         # Compute combined normalization stats.
@@ -170,6 +185,111 @@ def train(config, device):
         action_stats = ActionUtils.get_action_stats_dict(rlds_dataset_stats["action"], config.train.action_keys, config.train.action_shapes)
         action_normalization_stats = action_stats_to_normalization_stats(action_stats, action_config)
         dataset = dataset.map(robomimic_transform, num_parallel_calls=config.train.traj_transform_threads)
+
+        # Create PyTorch Dataset and DataLoader.
+        pytorch_dataset = TorchRLDSDataset(dataset)
+        train_loader = DataLoader(
+            pytorch_dataset,
+            batch_size=config.train.batch_size,
+            num_workers=0,  # important to keep this to 0 so PyTorch does not mess with the parallelism
+        )
+
+        # For RLDS, sample a batch from the dataloader to compute shapes.
+        data_loader_iter = iter(train_loader)
+        rlds_batch = next(data_loader_iter)
+        shape_meta = FileUtils.get_shape_metadata_from_dataset(
+            dataset_path=None,
+            batch=rlds_batch,
+            action_keys=config.train.action_keys,
+            all_obs_keys=config.all_obs_keys,
+            ds_format=ds_format,
+            verbose=True,
+            config = config
+        )
+
+    elif ds_format == "libero_rlds":
+        env_meta = {}
+        obs_normalization_stats = None
+
+        # (For RLDS datasets) Disable TensorFlow's GPU utilization.
+        tf.config.set_visible_devices([], "GPU")
+
+        # Get RGB observation modalities.
+        obs_modalities = config.observation.modalities.obs.rgb
+        assert(len(obs_modalities) == 1), "Only expecting observations from one camera!"
+
+        # Get action dim, configs, and mask.
+        ac_dim = sum([ac_comp[1] for ac_comp in config.train.action_shapes])
+        action_config = config.train.action_config
+        action_mask = [True] * ac_dim
+
+        # Set base dataset kwargs.
+        if "action/rel_pos" in config.train.action_keys:
+            assert "action/abs_pos" not in config.train.action_keys
+            dataset_transform = libero_dataset_transform
+        else:
+            dataset_transform = libero_dataset_transform_abs
+        state_obs_keys = config.observation.modalities.obs.low_dim
+        BASE_DATASET_KWARGS = {
+            "data_dir": config.train.data_path,
+            "image_obs_keys": {"primary": obs_modalities[0], "secondary": None},
+            "state_obs_keys": state_obs_keys,
+            "language_key": "language_instruction",
+            "norm_skip_keys": ["proprio"],
+            "action_proprio_normalization_type": "bounds",
+            "absolute_action_mask": action_mask,
+            "action_normalization_mask": action_mask,
+            "standardize_fn": dataset_transform,
+         }
+
+        # Filter out failure episodes if applicable.
+        dataset_names = config.train.dataset_names
+        filter_functions = []
+        dataset_kwargs_list = [
+            {"name": d_name, **BASE_DATASET_KWARGS} for d_name in dataset_names
+        ]
+
+        # Compute combined normalization stats.
+        combined_dataset_statistics = combine_dataset_statistics(
+            [make_dataset_from_rlds(**dataset_kwargs, train=True)[1] for dataset_kwargs in dataset_kwargs_list]
+        )
+
+        # Create dataset.
+        dataset = make_interleaved_dataset(
+            dataset_kwargs_list,
+            config.train.sample_weights,
+            train=True,
+            shuffle_buffer_size=config.train.shuffle_buffer_size,
+            batch_size=None,  # batching will be handled in PyTorch Dataloader object
+            balance_weights=False,
+            dataset_statistics=combined_dataset_statistics,
+            traj_transform_kwargs=dict(
+                # NOTE(Ashwin): window_size and future_action_window_size may break if
+                # not using diffusion policy
+                window_size=config.algo.horizon.observation_horizon,
+                future_action_window_size=config.algo.horizon.prediction_horizon-1,  # -1 because horizon = current action (+1) + future (H-1) actions
+                subsample_length=config.train.subsample_length,
+                skip_unlabeled=True,    # skip all trajectories without language
+            ),
+            frame_transform_kwargs=dict(
+                image_augment_kwargs=dict(
+                ),
+                resize_size=dict(
+                    primary=config.observation.image_dim,
+                    secondary=config.observation.image_dim,
+                ),
+                num_parallel_calls=config.train.num_parallel_calls,
+            ),
+            traj_transform_threads=config.train.traj_transform_threads,
+            traj_read_threads=config.train.traj_read_threads,
+        )
+        # Note: If we have separated statistics for multiple datasets, use the first one (assumed to be DROID)
+        # Otherwise, use the combined dataset statistics.
+        rlds_dataset_stats = dataset.dataset_statistics[0] if isinstance(dataset.dataset_statistics, list) else dataset.dataset_statistics
+        num_transitions = rlds_dataset_stats["num_transitions"][0].item()
+        action_stats = ActionUtils.get_action_stats_dict(rlds_dataset_stats["action"], config.train.action_keys, config.train.action_shapes)
+        action_normalization_stats = action_stats_to_normalization_stats(action_stats, action_config)
+        dataset = dataset.map(robomimic_transform_libero, num_parallel_calls=config.train.traj_transform_threads)
 
         # Create PyTorch Dataset and DataLoader.
         pytorch_dataset = TorchRLDSDataset(dataset)

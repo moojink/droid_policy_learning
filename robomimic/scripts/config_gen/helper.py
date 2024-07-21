@@ -151,6 +151,108 @@ def set_env_settings(generator, args):
                 None
             ],
         )
+    if args.env == "libero":
+        assert args.mod == "im"
+        generator.add_param(
+            key="experiment.rollout.enabled",
+            name="",
+            group=-1,
+            values=[
+                False
+            ],
+        )
+        generator.add_param(
+            key="experiment.save.every_n_epochs",
+            name="",
+            group=-1,
+            values=[50],
+        )
+        generator.add_param(
+            key="experiment.mse.enabled",
+            name="",
+            group=-1,
+            values=[True],
+        ),
+        generator.add_param(
+            key="experiment.mse.every_n_epochs",
+            name="",
+            group=-1,
+            values=[10],
+        ),
+        generator.add_param(
+            key="experiment.mse.on_save_ckpt",
+            name="",
+            group=-1,
+            values=[True],
+        ),
+        generator.add_param(
+            key="experiment.mse.num_samples",
+            name="",
+            group=-1,
+            values=[6],
+        ),
+        generator.add_param(
+            key="experiment.mse.visualize",
+            name="",
+            group=-1,
+            values=[True],
+        ),
+        if "observation.modalities.obs.low_dim" not in generator.parameters:
+            generator.add_param(
+                key="observation.modalities.obs.low_dim",
+                name="",
+                group=-1,
+                values=[
+                    ["state"]
+                ],
+            )
+        if "observation.modalities.obs.rgb" not in generator.parameters:
+            generator.add_param(
+                key="observation.modalities.obs.rgb",
+                name="",
+                group=-1,
+                values=[
+                    [
+                        "static_image",
+                        "wrist_image",
+                    ]
+                ],
+            )
+        if ("observation.encoder.rgb.obs_randomizer_kwargs" not in generator.parameters) and \
+            ("observation.encoder.rgb.obs_randomizer_kwargs.crop_height" not in generator.parameters):
+            generator.add_param(
+                key="observation.encoder.rgb.obs_randomizer_kwargs.crop_height",
+                name="",
+                group=-1,
+                values=[
+                    116
+                ],
+            )
+            generator.add_param(
+                key="observation.encoder.rgb.obs_randomizer_kwargs.crop_width",
+                name="",
+                group=-1,
+                values=[
+                    116
+                ],
+            )
+        # remove spatial softmax by default for droid dataset
+        generator.add_param(
+            key="observation.encoder.rgb.core_kwargs.pool_class",
+            name="",
+            group=-1,
+            values=[
+                None
+            ],
+        )
+        generator.add_param(
+            key="observation.encoder.rgb.core_kwargs.pool_kwargs",
+            name="",
+            group=-1,
+            values=[
+                None
+            ],
+        )
         
         # here, we list how each action key should be treated (normalized etc)
         generator.add_param(

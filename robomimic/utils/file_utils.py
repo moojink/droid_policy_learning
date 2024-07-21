@@ -223,6 +223,24 @@ def get_shape_metadata_from_dataset(dataset_path, batch, action_keys, all_obs_ke
                 )
 
         shape_meta = {'ac_dim': batch["actions"].shape[-1]}
+    elif ds_format == "libero_rlds":
+        all_shapes = OrderedDict()
+        for k in [
+            "state",
+            "image",
+        ]:
+            if k in batch["obs"]:
+                initial_shape = batch["obs"][k].shape[2:]
+
+                if len(initial_shape) == 0:
+                    initial_shape = (1,)
+
+                all_shapes[k] = ObsUtils.get_processed_shape(
+                    obs_modality=ObsUtils.OBS_KEYS_TO_MODALITIES[k],
+                    input_shape=initial_shape,
+                )
+
+        shape_meta = {'ac_dim': batch["actions"].shape[-1]}
     else:
         raise ValueError
 

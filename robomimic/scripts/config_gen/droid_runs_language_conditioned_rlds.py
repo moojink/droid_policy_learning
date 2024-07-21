@@ -10,14 +10,14 @@ from collections import OrderedDict
 # Note: Assumes naming of dataset in "datasets" for the full DROID dataset is
 # droid
 
-DATA_PATH = "/iris/u/moojink/data/"    # UPDATE WITH PATH TO RLDS DATASETS
+DATA_PATH = "/iris/u/moojink/data/" # UPDATE WITH PATH TO RLDS DATASETS
 EXP_LOG_PATH = "/iris/u/moojink/prismatic-dev/droid_dp_runs/" # UPDATE WITH PATH TO DESIRED LOGGING DIRECTORY
 EXP_NAMES = OrderedDict(
     [
         # Note: you can add co-training dataset here appending
         # a new dataset to "datasets" and adjusting "sample_weights"
         # accordingly
-        ("tdroid_carrot_in_bowl", {"datasets": ["tdroid_carrot_in_bowl"],
+        ("libero_spatial", {"datasets": ["libero_spatial"],
                    "sample_weights": [1]})                                    
     ])
 
@@ -36,15 +36,6 @@ def make_generator_helper(args):
     )
     if args.ckpt_mode is None:
         args.ckpt_mode = "off"
-
-    generator.add_param(
-        key="train.data_format",
-        name="",
-        group=-1,
-        values=[
-            "droid_rlds"
-        ],
-    )
 
     generator.add_param(
         key="train.num_epochs",
@@ -147,6 +138,14 @@ def make_generator_helper(args):
 
     if args.env == "droid":
         generator.add_param(
+            key="train.data_format",
+            name="",
+            group=-1,
+            values=[
+                "droid_rlds"
+            ],
+        )
+        generator.add_param(
             key="train.sample_weights",
             name="sample_weights",
             group=24988,
@@ -191,7 +190,7 @@ def make_generator_helper(args):
             group=-1,
             values=[
                 [
-                    # # Absolute position control (w/ 6D rot)
+                    # Absolute position control (w/ 6D rot)
                     # (1, 3),
                     # (1, 6),
                     # (1, 1),
@@ -282,6 +281,212 @@ def make_generator_helper(args):
             group=24986,
             values=[
                 ["robot_state/cartesian_position", "robot_state/gripper_position"],
+            ],
+            value_names=[
+                "proprio-lang",
+            ],
+            hidename=False,
+        )
+        # generator.add_param(
+        #     key="observation.encoder.rgb.core_kwargs.backbone_kwargs.use_cam",
+        #     name="",
+        #     group=2498,
+        #     values=[
+        #         False,
+        #         # True,
+        #     ],
+        #     hidename=True,
+        # )
+        generator.add_param(
+            key="observation.encoder.rgb.core_kwargs.backbone_kwargs.pretrained",
+            name="",
+            group=2498,
+            values=[
+                # False,
+                True,
+            ],
+            hidename=True,
+        )
+        generator.add_param(
+            key="observation.encoder.rgb.core_class",
+            name="visenc",
+            group=-1,
+            values=["VisualCore"],
+        )
+        generator.add_param(
+            key="observation.encoder.rgb.core_kwargs.backbone_class",
+            name="",
+            group=-1,
+            values=["ResNet50Conv"],
+            hidename=True,
+        )
+        generator.add_param(
+            key="observation.encoder.rgb.core_kwargs.feature_dimension",
+            name="visdim",
+            group=1234,
+            values=[
+                512,
+                # None,
+                # None
+            ],
+            hidename=True,
+        )
+        generator.add_param(
+            key="observation.encoder.rgb.core_kwargs.flatten",
+            name="flatten",
+            group=1234,
+            values=[
+                True,
+                # False,
+                # False
+            ],
+            hidename=True,
+        )
+        generator.add_param(
+            key="observation.encoder.rgb.fuser",
+            name="fuser",
+            group=1234,
+            values=[
+                None,
+                # "transformer",
+                # "perceiver"
+            ],
+            hidename=False,
+        )
+        generator.add_param(
+            key="observation.encoder.rgb.core_kwargs.backbone_kwargs.downsample",
+            name="",
+            group=1234,
+            values=[
+                False,
+            ],
+            hidename=False,
+        )
+
+
+    if args.env == "libero":
+        generator.add_param(
+            key="train.data_format",
+            name="",
+            group=-1,
+            values=[
+                "libero_rlds"
+            ],
+        )
+        generator.add_param(
+            key="train.sample_weights",
+            name="sample_weights",
+            group=24988,
+            values=[
+                EXP_NAMES[k]["sample_weights"] for k in EXP_NAMES.keys()
+            ],
+        )
+        generator.add_param(
+            key="train.dataset_names",
+            name="dataset_names",
+            group=24988,
+            values=[
+                EXP_NAMES[k]["datasets"] for k in EXP_NAMES.keys()
+            ],
+            value_names=list(EXP_NAMES.keys())
+        )
+        generator.add_param(
+            key="train.action_keys",
+            name="ac_keys",
+            group=-1,
+            values=[
+                [
+                    # # Absolute position control
+                    # "action/abs_pos",
+                    # "action/abs_rot_6d",
+                    # "action/gripper_position",
+
+                    # Relative position control
+                    "action/rel_pos",
+                    "action/rel_rot_euler",
+                    "action/gripper_velocity",
+                ],
+            ],
+            value_names=[
+                "abs",
+            ],
+            hidename=True,
+        )
+        generator.add_param(
+            key="train.action_shapes",
+            name="ac_shapes",
+            group=-1,
+            values=[
+                [
+                    # Absolute position control (w/ 6D rot)
+                    # (1, 3),
+                    # (1, 6),
+                    # (1, 1),
+
+                    # Relative position control (w/ 3D rot)
+                    (1, 3),
+                    (1, 3),
+                    (1, 1),
+                ],
+            ],
+            value_names=[
+                "ac_shapes",
+            ],
+            hidename=True,
+        )
+        generator.add_param(
+            key="observation.image_dim",
+            name="",
+            group=-1,
+            values=[
+                # [128, 128],
+                [224, 224],
+            ],
+            hidename=True,
+        )
+        generator.add_param(
+            key="observation.modalities.obs.rgb",
+            name="cams",
+            group=130,
+            values=[
+                ["image"],
+            ],
+            value_names=[
+                "image",
+                # "wrist_image",
+            ]
+        )
+        generator.add_param(
+            key="observation.encoder.rgb.obs_randomizer_class",
+            name="obsrand",
+            group=130,
+            values=[
+                # "ColorRandomizer", # jitter only
+                ["ColorRandomizer", "CropRandomizer"], # jitter, followed by crop
+            ],
+            hidename=True,
+        )
+        generator.add_param(
+            key="observation.encoder.rgb.obs_randomizer_kwargs",
+            name="obsrandargs",
+            group=130,
+            values=[
+                # # For 128x128 images
+                # [{}, {"crop_height": 116, "crop_width": 116, "num_crops": 1, "pos_enc": False}], # jitter, followed by crop
+
+                # For 224x224 images
+                [{}, {"crop_height": 202, "crop_width": 202, "num_crops": 1, "pos_enc": False}], # jitter, followed by crop
+            ],
+            hidename=True,
+        )
+
+        ### CONDITIONING
+        generator.add_param(
+            key="observation.modalities.obs.low_dim",
+            name="ldkeys",
+            group=24986,
+            values=[
+                ["state"],
             ],
             value_names=[
                 "proprio-lang",

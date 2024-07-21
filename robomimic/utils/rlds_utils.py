@@ -25,6 +25,37 @@ def mat_to_rot6d(mat):
     return r6_flat
 
 
+def binarize_gripper_actions(actions: tf.Tensor) -> tf.Tensor:
+    """
+    Converts gripper actions from continuous to binary values (0 and 1).
+
+    We exploit that fact that most of the time, the gripper is fully open (near 1.0) or fully closed (near 0.0). As it
+    transitions between the two, it sometimes passes through a few intermediate values. We relabel those intermediate
+    values based on the state that is reached _after_ those intermediate values.
+
+    In the edge case that the trajectory ends with an intermediate value, we give up on binarizing and relabel that
+    chunk of intermediate values as the last action in the trajectory.
+
+    The `scan_fn` implements the following logic:
+        new_actions = np.empty_like(actions)
+        carry = actions[-1]
+        for i in reversed(range(actions.shape[0])):
+            if in_between_mask[i]:
+                carry = carry
+            else:
+                carry = float(open_mask[i])
+            new_actions[i] = carry
+    """
+    open_mask, closed_mask = actions > 0.95, actions < 0.05
+    in_between_mask = tf.logical_not(tf.logical_or(open_mask, closed_mask))
+    is_open_float = tf.cast(open_mask, tf.float32)
+
+    def scan_fn(carry, i):
+        return tf.cond(in_between_mask[i], lambda: tf.cast(carry, tf.float32), lambda: is_open_float[i])
+
+    return tf.scan(scan_fn, tf.range(tf.shape(actions)[0]), actions[-1], reverse=True)
+
+
 def droid_dataset_transform_abs(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     # absolute cartesian control
     # every input feature is batched, ie has leading batch dimension
@@ -57,6 +88,62 @@ def droid_dataset_transform_rel(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     return trajectory
 
 
+def libero_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
+    trajectory["action"] = tf.concat(
+        [
+            trajectory["action"][:, :6],
+            binarize_gripper_actions(trajectory["action"][:, -1])[:, None],
+        ],
+        axis=1,
+    )
+    trajectory["observation"]["EEF_state"] = trajectory["observation"]["state"][:, :6]
+    trajectory["observation"]["gripper_state"] = trajectory["observation"]["state"][:, -2:]  # 2D gripper state
+
+    trajectory["observation"]["proprio"] = tf.concat(
+        (
+            trajectory["observation"]["state"][:, :6],
+            trajectory["observation"]["state"][:, -2:],
+        ),
+        axis=-1,
+    )
+    return trajectory
+
+
+def libero_dataset_transform_abs(trajectory: Dict[str, Any]) -> Dict[str, Any]:
+    dT = trajectory["action"][:, :3]
+    T = trajectory["observation"]["state"][:, :3]
+    T_prime = T + dT
+
+    dR = euler_to_rmat(trajectory["action"][:, 3:6])
+    R = euler_to_rmat(trajectory["observation"]["state"][:, 3:6])
+    R_prime = mat_to_rot6d(dR @ R)
+
+    dG = binarize_gripper_actions(trajectory["action"][:, -1])[:, None]
+    G = trajectory["observation"]["state"][:, -2:-1]
+    G_prime = G + dG
+
+    trajectory["action"] = tf.concat(
+        [
+            T_prime,
+            R_prime,
+            G_prime
+        ],
+        axis=1,
+    )
+
+    trajectory["observation"]["EEF_state"] = trajectory["observation"]["state"][:, :6]
+    trajectory["observation"]["gripper_state"] = trajectory["observation"]["state"][:, -2:]  # 2D gripper state
+
+    trajectory["observation"]["proprio"] = tf.concat(
+        (
+            trajectory["observation"]["state"][:, :6],
+            trajectory["observation"]["state"][:, -2:],
+        ),
+        axis=-1,
+    )
+    return trajectory
+
+
 def robomimic_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "obs": {
@@ -67,6 +154,16 @@ def robomimic_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
             "pad_mask": trajectory["observation"]["pad_mask"][..., None],
         },
         "actions": trajectory["action"][1:],
+    }
+
+def robomimic_transform_libero(trajectory: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "obs": {
+            "image": trajectory["observation"]["image_primary"],
+            "raw_language": trajectory["task"]["language_instruction"],
+            "state": trajectory["observation"]["proprio"],
+        },
+        "actions": trajectory["action"],
     }
 
 DROID_TO_RLDS_OBS_KEY_MAP = {
