@@ -355,7 +355,7 @@ class DiffusionPolicyUNet(PolicyAlgo):
 
         # If there are no actions left to execute, run inference to predict another action chunk.
         if len(self.action_queue) == 0:
-            print(f"Predicting new action chunk...")
+            # print(f"Predicting new action chunk...")
             # Predict action chunk.
             action_sequence = self._get_action_trajectory(obs_dict=obs_dict)  # (1, Ta, ac_dim)
             # Store action chunk in queue.

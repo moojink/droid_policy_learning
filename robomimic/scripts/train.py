@@ -582,7 +582,7 @@ def train(config, device):
 
         # check if we need to save model MSE
         #TODO(Ashwin): support MSE Logging with RLDS dataloading
-        if ds_format != "droid_rlds":
+        if ds_format != "droid_rlds" and ds_format != "libero_rlds":
             should_save_mse = False
             if config.experiment.mse.enabled:
                 if config.experiment.mse.every_n_epochs is not None and epoch % config.experiment.mse.every_n_epochs == 0:
