@@ -210,6 +210,7 @@ def get_shape_metadata_from_dataset(dataset_path, batch, action_keys, all_obs_ke
             "robot_state/cartesian_position",
             "robot_state/gripper_position",
             "static_image",
+            "lang_fixed/language_distilbert",
         ]:
             if k in batch["obs"]:
                 initial_shape = batch["obs"][k].shape[2:]
@@ -228,6 +229,7 @@ def get_shape_metadata_from_dataset(dataset_path, batch, action_keys, all_obs_ke
         for k in [
             "state",
             "image",
+            "lang_fixed/language_distilbert",
         ]:
             if k in batch["obs"]:
                 initial_shape = batch["obs"][k].shape[2:]

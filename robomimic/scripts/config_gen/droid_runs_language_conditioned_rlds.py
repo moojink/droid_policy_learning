@@ -10,7 +10,7 @@ from collections import OrderedDict
 # Note: Assumes naming of dataset in "datasets" for the full DROID dataset is
 # droid
 
-DATA_PATH = "/iris/u/moojink/data/" # UPDATE WITH PATH TO RLDS DATASETS
+DATA_PATH = "/scr/moojink/data/" # UPDATE WITH PATH TO RLDS DATASETS
 EXP_LOG_PATH = "/iris/u/moojink/prismatic-dev/droid_dp_runs/" # UPDATE WITH PATH TO DESIRED LOGGING DIRECTORY
 EXP_NAMES = OrderedDict(
     [
@@ -418,7 +418,7 @@ def make_generator_helper(args):
             group=-1,
             values=[
                 [
-                    # Absolute position control (w/ 6D rot)
+                    # # Absolute position control (w/ 6D rot)
                     # (1, 3),
                     # (1, 6),
                     # (1, 1),
@@ -463,6 +463,7 @@ def make_generator_helper(args):
             values=[
                 # "ColorRandomizer", # jitter only
                 ["ColorRandomizer", "CropRandomizer"], # jitter, followed by crop
+                # [], # no augmentations
             ],
             hidename=True,
         )
@@ -476,6 +477,8 @@ def make_generator_helper(args):
 
                 # For 224x224 images
                 [{}, {"crop_height": 202, "crop_width": 202, "num_crops": 1, "pos_enc": False}], # jitter, followed by crop
+
+                # [{}, {}] # no augmentations
             ],
             hidename=True,
         )

@@ -235,12 +235,13 @@ def axis_angle_to_rot_6d(axis_angle):
     return rot_6d
 
 
-def euler_angles_to_rot_6d(euler_angles, convention="XYZ"):
+def euler_angles_to_rot_6d(euler_angles):
     """
     Converts tensor with rot_6d representation to euler representation.
     """
-    rot_mat = euler_angles_to_matrix(euler_angles, convention="XYZ")
-    rot_6d = matrix_to_rotation_6d(rot_mat)
+    rot = scipy.spatial.transform.Rotation.from_euler(angles=euler_angles.numpy(), seq="xyz")
+    rot_mat = rot.as_matrix()
+    rot_6d = matrix_to_rotation_6d(torch.Tensor(rot_mat))
     return rot_6d
 
 
