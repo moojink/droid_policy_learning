@@ -55,14 +55,6 @@ def get_exp_dir(config, auto_remove_exp_dir=False):
         # relative paths are specified relative to robomimic module location
         base_output_dir = os.path.join(robomimic.__path__[0], base_output_dir)
     base_output_dir = os.path.join(base_output_dir, config.experiment.name)
-    if os.path.exists(base_output_dir):
-        if not auto_remove_exp_dir:
-            ans = input("WARNING: model directory ({}) already exists! \noverwrite? (y/n)\n".format(base_output_dir))
-        else:
-            ans = "y"
-        if ans == "y":
-            print("REMOVING")
-            shutil.rmtree(base_output_dir)
 
     # only make model directory if model saving is enabled
     output_dir = None
@@ -620,7 +612,7 @@ def run_epoch(model, data_loader, epoch, validate=False, num_steps=None, obs_nor
         data_loader_iter = iter(data_loader)
     else:
         data_loader_iter = data_loader_iter
-    for _ in LogUtils.custom_tqdm(range(num_steps)):
+    for idx in LogUtils.custom_tqdm(range(num_steps)):
 
         # load next batch from data loader
         try:
@@ -641,7 +633,8 @@ def run_epoch(model, data_loader, epoch, validate=False, num_steps=None, obs_nor
 
         # forward and backward pass
         t = time.time()
-        info = model.train_on_batch(input_batch, epoch, validate=validate)
+        get_actions_l1_loss = True if idx % 10 == 0 else False  # Get L1 loss b/t ground-truth & predicted actions for every 10 steps
+        info = model.train_on_batch(input_batch, epoch, validate=validate, get_actions_l1_loss=get_actions_l1_loss)
         timing_stats["Train_Batch"].append(time.time() - t)
 
         # tensorboard logging
