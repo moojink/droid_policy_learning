@@ -21,10 +21,9 @@ This repository contains code for training and evaluating policies on the [DROID
 ## Installation
 Create a python3 conda environment (tested with Python 3.10) and run the following:
 
-1. Create python 3.10 conda environment: `conda create --name droid_policy_learning_env python=3.10`
+1. Create python 3.10 conda environment: `conda create --name droid_policy_learning_env python=3.10 -y`
 2. Activate the conda environment: `conda activate droid_policy_learning_env`
-3. Install [octo](https://github.com/octo-models/octo/tree/main) (used for data loading)
-5. In `droid_policy_learning`, run: `pip install -e octo/ && pip install -e . && pip install -r requirements.txt && pip install --no-deps --force-reinstall git+https://github.com/kvablack/dlimp@ad72ce3a9b414db2185bc0b38461d4101a65477a`.
+3. In `droid_policy_learning`, run: `pip install -e octo/ && pip install -e . && pip install -r requirements.txt && pip install --no-deps --force-reinstall git+https://github.com/moojink/dlimp_openvla`.
 
 With this you are all set up for training policies on DROID. If you want to evaluate your policies on a real robot DROID setup, 
 please install the DROID robot controller in the same conda environment (follow the instructions [here](https://github.com/droid-dataset/droid)).
