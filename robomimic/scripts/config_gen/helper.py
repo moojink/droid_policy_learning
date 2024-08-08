@@ -60,12 +60,6 @@ def set_env_settings(generator, args):
             ],
         )
         generator.add_param(
-            key="experiment.save.every_n_epochs",
-            name="",
-            group=-1,
-            values=[50],
-        )
-        generator.add_param(
             key="experiment.mse.enabled",
             name="",
             group=-1,
@@ -160,12 +154,6 @@ def set_env_settings(generator, args):
             values=[
                 False
             ],
-        )
-        generator.add_param(
-            key="experiment.save.every_n_epochs",
-            name="",
-            group=-1,
-            values=[50],
         )
         generator.add_param(
             key="experiment.mse.enabled",
