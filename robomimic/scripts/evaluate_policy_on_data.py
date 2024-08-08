@@ -7,7 +7,8 @@ Usage:
     python robomimic/scripts/evaluate_policy_on_data.py -l --ckpt_path /iris/u/moojink/prismatic-dev/droid_dp_runs/droid/im/diffusion_policy/04-25-None/bz_128_noise_samples_8_sample_weights_1_dataset_names_mjk_panda_4_cams_static_ldkeys_proprio-lang_visenc_VisualCore_fuser_None/20240425183333/models/model_epoch_5000.pth
     python robomimic/scripts/evaluate_policy_on_data.py -l --ckpt_path /iris/u/moojink/prismatic-dev/droid_dp_runs/libero/im/diffusion_policy/07-20-None/bz_128_noise_samples_8_sample_weights_1_dataset_names_libero_spatial_cams_image_ldkeys_proprio-lang_visenc_VisualCore_fuser_None/20240721002112/models/model_epoch_50.pth
     python robomimic/scripts/evaluate_policy_on_data.py -l --ckpt_path /iris/u/moojink/prismatic-dev/droid_dp_runs//libero/im/diffusion_policy/08-07-None/bz_128_noise_samples_8_sample_weights_1_dataset_names_libero_goal_cams_image_ldkeys_proprio-lang_visenc_VisualCore_fuser_None/20240807160259/models/model_epoch_1.pth
-    python robomimic/scripts/evaluate_policy_on_data.py -l --ckpt_path /iris/u/moojink/prismatic-dev/droid_dp_runs/libero/im/diffusion_policy/08-07-None/bz_128_noise_samples_8_sample_weights_1_dataset_names_libero_spatial_cams_image_ldkeys_proprio-lang_visenc_VisualCore_fuser_None/20240807183949/models/model_epoch_75.pth
+    python robomimic/scripts/evaluate_policy_on_data.py -l --ckpt_path /iris/u/moojink/prismatic-dev/droid_dp_runs/libero/im/diffusion_policy/08-07-None/bz_128_noise_samples_8_sample_weights_1_dataset_names_libero_spatial_cams_image_ldkeys_proprio-lang_visenc_VisualCore_fuser_None/20240807183949/models/model_epoch_175.pth
+    python robomimic/scripts/evaluate_policy_on_data.py -l --ckpt_path /iris/u/moojink/prismatic-dev/droid_dp_runs/libero/im/diffusion_policy/08-07-None/bz_128_noise_samples_8_sample_weights_1_dataset_names_libero_10_cams_image_ldkeys_proprio-lang_visenc_VisualCore_fuser_None/20240807200433/models/model_epoch_100.pth
 """
 import argparse
 import os
@@ -322,12 +323,7 @@ def eval_launcher(variant, run_id, exp_id):
     for batch in train_loader:
         assert len(batch['obs']['raw_language']) == 1, "This eval script only supports batch size 1 because it requires writing the language instruction to a file to specify the current task!"
 
-        # SUPER HACKY: Write the language instruction to a file, since DP expects to see this file during inference
-        if not os.path.exists("eval_params"):
-            os.makedirs("eval_params")
-        with open("eval_params/lang_command.txt", "w") as file:
-            task_label = batch['obs']['raw_language'][0].decode('utf-8')
-            file.write(task_label)
+        task_label = batch['obs']['raw_language'][0].decode('utf-8')
 
         curr_actions = []
         wrapped_policy.fs_wrapper.reset()
@@ -431,13 +427,13 @@ def eval_launcher(variant, run_id, exp_id):
 
             # Policy forward #
             Ta = config["algo"]["horizon"]["action_horizon"]
-            action = wrapped_policy.forward(obs_dict)
+            action = wrapped_policy.forward(obs_dict, task_label)
             curr_actions.append(action)
 
             # Flush out the rest of the action chunk.
             if i == config["algo"]["horizon"]["observation_horizon"] - 1:
                 while len(curr_actions) < Ta:
-                    action = wrapped_policy.forward(obs_dict)
+                    action = wrapped_policy.forward(obs_dict, task_label)
                     curr_actions.append(action)
 
             if len(curr_actions) == Ta:

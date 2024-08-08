@@ -357,9 +357,8 @@ class DiffusionPolicyUNet(PolicyAlgo):
                 obs_dict['static_image'] = torch.cat([obs_dict['static_image'], goal_static_camera_image.repeat(1, self.To, 1, 1, 1)], dim=2)
             # Note: currently assumes that you are never doing both goal and language conditioning
             else:  # language conditioning
-                # Read in current language instruction from file and fill in the appropriate observation key.
-                with open(os.path.join(root_path, "lang_command.txt"), 'r') as file:
-                    raw_lang = file.read()
+                # Get current language instruction
+                raw_lang = obs_dict["task_label"]
                 # Feed language instruction through language model.
                 tokenized_lang = tokenizer(raw_lang, return_tensors='pt').to('cuda')
                 outputs = lang_model(**tokenized_lang)  # (1, seq_len, transformer_dim)
@@ -403,7 +402,12 @@ class DiffusionPolicyUNet(PolicyAlgo):
             'obs': obs_dict,
         }
 
-        # Check that obsercations have the right shape.
+        # Remove the task label from the observations dict if we already have the embedding for it
+        # to prevent runtime errors later
+        if "lang_fixed/language_distilbert" in inputs["obs"] and "task_label" in inputs["obs"]:
+            inputs["obs"].pop("task_label")
+
+        # Check that observations have the right shape.
         for k in self.obs_shapes:
             # Skip language strings.
             if "raw" in k:
