@@ -195,7 +195,7 @@ class DiffusionPolicyUNet(PolicyAlgo):
         
         return TensorUtils.to_device(TensorUtils.to_float(input_batch), self.device)
 
-    def train_on_batch(self, batch, epoch, validate=False):
+    def train_on_batch(self, batch, epoch, validate=False, get_actions_l1_loss=False):
         """
         Training on a single batch of data.
 
@@ -207,6 +207,8 @@ class DiffusionPolicyUNet(PolicyAlgo):
                 to perform staged training and early stopping
 
             validate (bool): if True, don't perform any learning updates.
+
+            get_actions_l1_loss (bool): if True, get L1 loss b/t ground-truth and predicted actions
 
         Returns:
             info (dict): dictionary of relevant inputs, outputs, and losses
@@ -265,6 +267,19 @@ class DiffusionPolicyUNet(PolicyAlgo):
             losses = {
                 'l2_loss': loss
             }
+
+            # Also record L1 difference between ground-truth and predicted actions
+            if get_actions_l1_loss:
+                with torch.no_grad():
+                    # Get ground-truth action trajectories
+                    ground_truth_actions = actions
+                    # Get full predicted action trajectories (by disabling receding horizon control)
+                    predicted_actions = self._get_action_trajectory(obs_dict=batch["obs"], receding_horizon_control=False)  # (1, Ta, ac_dim)
+                    # Get L1 loss
+                    l1_loss = F.l1_loss(predicted_actions, ground_truth_actions)
+                    # Add L1 loss to loss dict
+                    losses["actions_l1_loss"] = l1_loss
+
             info["losses"] = TensorUtils.detach(losses)
 
             if not validate:
@@ -301,6 +316,8 @@ class DiffusionPolicyUNet(PolicyAlgo):
         log["Loss"] = info["losses"]["l2_loss"].item()
         if "policy_grad_norms" in info:
             log["Policy_Grad_Norms"] = info["policy_grad_norms"]
+        if "actions_l1_loss" in info["losses"]:
+            log["Actions_L1_Loss"] = info["losses"]["actions_l1_loss"].item()
         return log
 
     def reset(self):
@@ -367,7 +384,7 @@ class DiffusionPolicyUNet(PolicyAlgo):
         action = action.unsqueeze(0)  # (1, ac_dim)
         return action
 
-    def _get_action_trajectory(self, obs_dict):
+    def _get_action_trajectory(self, obs_dict, receding_horizon_control=True):
         # Set number of diffusion inference timesteps based on DDPM or DDIM.
         if self.algo_config.ddpm.enabled is True:
             num_inference_timesteps = self.algo_config.ddpm.num_inference_timesteps
@@ -425,8 +442,11 @@ class DiffusionPolicyUNet(PolicyAlgo):
                 sample=noisy_action
             ).prev_sample
 
-        # Receding horizon control: Extract only the first `Ta` == `action_horizon` steps of actions.
-        action = noisy_action[:,:self.Ta]  # (B, Ta, ac_dim)
+        if receding_horizon_control:
+            # Receding horizon control: Extract only the first `Ta` == `action_horizon` steps of actions.
+            action = noisy_action[:,:self.Ta]  # (B, Ta, ac_dim)
+        else:
+            action = noisy_action
         return action
 
     def serialize(self):
