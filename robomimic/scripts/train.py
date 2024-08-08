@@ -401,6 +401,12 @@ def train(config, device):
         log_wandb=config.experiment.logging.log_wandb,
     )
 
+    # Hack: Add DistilBERT language conditioning to config before constructing model
+    # (It is difficult to do this the "right" way, i.e., through the config...)
+    if ds_format in ["droid_rlds", "libero_rlds"]:
+        shape_meta["all_shapes"]["lang_fixed/language_distilbert"] = [768]
+        config["observation"]["modalities"]["obs"]["low_dim"].append("lang_fixed/language_distilbert")
+
     # Get model.
     model = algo_factory(
         algo_name=config.algo_name,

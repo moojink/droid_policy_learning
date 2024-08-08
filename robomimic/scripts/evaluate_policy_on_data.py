@@ -6,6 +6,8 @@ Usage:
 
     python robomimic/scripts/evaluate_policy_on_data.py -l --ckpt_path /iris/u/moojink/prismatic-dev/droid_dp_runs/droid/im/diffusion_policy/04-25-None/bz_128_noise_samples_8_sample_weights_1_dataset_names_mjk_panda_4_cams_static_ldkeys_proprio-lang_visenc_VisualCore_fuser_None/20240425183333/models/model_epoch_5000.pth
     python robomimic/scripts/evaluate_policy_on_data.py -l --ckpt_path /iris/u/moojink/prismatic-dev/droid_dp_runs/libero/im/diffusion_policy/07-20-None/bz_128_noise_samples_8_sample_weights_1_dataset_names_libero_spatial_cams_image_ldkeys_proprio-lang_visenc_VisualCore_fuser_None/20240721002112/models/model_epoch_50.pth
+    python robomimic/scripts/evaluate_policy_on_data.py -l --ckpt_path /iris/u/moojink/prismatic-dev/droid_dp_runs//libero/im/diffusion_policy/08-07-None/bz_128_noise_samples_8_sample_weights_1_dataset_names_libero_goal_cams_image_ldkeys_proprio-lang_visenc_VisualCore_fuser_None/20240807160259/models/model_epoch_1.pth
+    python robomimic/scripts/evaluate_policy_on_data.py -l --ckpt_path /iris/u/moojink/prismatic-dev/droid_dp_runs/libero/im/diffusion_policy/08-07-None/bz_128_noise_samples_8_sample_weights_1_dataset_names_libero_spatial_cams_image_ldkeys_proprio-lang_visenc_VisualCore_fuser_None/20240807183949/models/model_epoch_75.pth
 """
 import argparse
 import os
@@ -223,6 +225,13 @@ def eval_launcher(variant, run_id, exp_id):
         state_obs_keys = config["observation"]["modalities"]["obs"]["low_dim"]
     else:
         raise ValueError("Unexpected experiment name found! Expecting DROID or LIBERO experiment.")
+
+    # Hack: Remove DistilBERT from the state_obs_keys to prevent runtime error when constructing the dataset,
+    # since the DistilBERT embeddings are not included in the raw RLDS data
+    # (It is difficult to do this the "right" way...)
+    if "lang_fixed/language_distilbert" in state_obs_keys:
+        state_obs_keys.remove("lang_fixed/language_distilbert")
+
     BASE_DATASET_KWARGS = {
         "data_dir": config["train"]["data_path"],
         "image_obs_keys": {"primary": obs_modalities[0], "secondary": None},
